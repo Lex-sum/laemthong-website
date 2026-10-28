@@ -66,7 +66,6 @@ export async function getFilteredProducts(filter: ProductFilter = {}): Promise<P
     category,
     brand,
     search,
-    locale = "th",
     page = 1,
     perPage = 24,
   } = filter;
