@@ -1,5 +1,6 @@
 "use server";
 
+import { requireAdmin } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { categorySchema } from "@/lib/validations/category";
 import {
@@ -18,6 +19,8 @@ export async function createCategoryAction(
   _prevState: CategoryActionState,
   formData: FormData
 ): Promise<CategoryActionState> {
+  await requireAdmin();
+
   const validated = categorySchema.safeParse({
     slug: formData.get("slug"),
     nameTh: formData.get("nameTh"),
@@ -59,6 +62,8 @@ export async function updateCategoryAction(
   _prevState: CategoryActionState,
   formData: FormData
 ): Promise<CategoryActionState> {
+  await requireAdmin();
+
   const originalSlug = formData.get("originalSlug") as string;
   const skipRedirect = formData.get("_skipRedirect") === "true";
 
@@ -103,6 +108,8 @@ export async function updateCategoryAction(
 export async function deleteCategoryAction(
   slug: string
 ): Promise<CategoryActionState> {
+  await requireAdmin();
+
   try {
     await adminDeleteCategory(slug);
     deleteImageFolder("categories", slug).catch(() => {});

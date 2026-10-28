@@ -1,5 +1,6 @@
 "use server";
 
+import { requireAdmin } from "@/lib/auth";
 import { uploadImage, deleteImage, type ImageFolder } from "@/lib/storage";
 
 export type UploadResult = {
@@ -20,6 +21,8 @@ const ALLOWED_TYPES = [
 export async function uploadImageAction(
   formData: FormData
 ): Promise<UploadResult> {
+  await requireAdmin();
+
   const file = formData.get("file") as File | null;
   const folder = formData.get("folder") as ImageFolder | null;
   const entitySlug = formData.get("entitySlug") as string | null;
@@ -51,5 +54,7 @@ export async function uploadImageAction(
 }
 
 export async function deleteImageAction(publicUrl: string): Promise<void> {
+  await requireAdmin();
+
   await deleteImage(publicUrl);
 }

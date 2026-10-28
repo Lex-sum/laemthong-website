@@ -1,5 +1,6 @@
 "use server";
 
+import { requireAdmin } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { brandSchema } from "@/lib/validations/brand";
 import {
@@ -18,6 +19,8 @@ export async function createBrandAction(
   _prevState: BrandActionState,
   formData: FormData
 ): Promise<BrandActionState> {
+  await requireAdmin();
+
   const validated = brandSchema.safeParse({
     slug: formData.get("slug"),
     name: formData.get("name"),
@@ -69,6 +72,8 @@ export async function updateBrandAction(
   _prevState: BrandActionState,
   formData: FormData
 ): Promise<BrandActionState> {
+  await requireAdmin();
+
   const originalSlug = formData.get("originalSlug") as string;
 
   const validated = brandSchema.safeParse({
@@ -123,6 +128,8 @@ export async function updateBrandAction(
 }
 
 export async function deleteBrandAction(slug: string): Promise<BrandActionState> {
+  await requireAdmin();
+
   try {
     await adminDeleteBrand(slug);
     deleteImageFolder("brands", slug).catch(() => {});

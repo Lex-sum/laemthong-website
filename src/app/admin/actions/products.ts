@@ -1,5 +1,6 @@
 "use server";
 
+import { requireAdmin } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { productSchema } from "@/lib/validations/product";
 import {
@@ -29,6 +30,8 @@ export async function createProductAction(
   _prevState: ActionState,
   formData: FormData
 ): Promise<ActionState> {
+  await requireAdmin();
+
   const validated = productSchema.safeParse({
     slug: formData.get("slug") || undefined,
     nameTh: formData.get("nameTh"),
@@ -118,6 +121,8 @@ export async function updateProductAction(
   _prevState: ActionState,
   formData: FormData
 ): Promise<ActionState> {
+  await requireAdmin();
+
   const originalSlug = formData.get("originalSlug") as string;
 
   const validated = productSchema.safeParse({
@@ -197,6 +202,8 @@ export async function updateProductAction(
 export async function deleteProductAction(
   slug: string
 ): Promise<ActionState> {
+  await requireAdmin();
+
   try {
     await adminDeleteProduct(slug);
     deleteImageFolder("products", slug).catch(() => {});
@@ -211,6 +218,8 @@ export async function deleteProductAction(
 export async function bulkDeleteProductsAction(
   slugs: string[]
 ): Promise<{ success: boolean; deleted: number; message?: string }> {
+  await requireAdmin();
+
   const supabase = createSupabaseAdminClient();
   const { error } = await supabase.from("products").delete().in("slug", slugs);
 

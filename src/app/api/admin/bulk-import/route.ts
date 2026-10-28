@@ -1,6 +1,5 @@
-import { cookies } from "next/headers";
 import { revalidatePath } from "next/cache";
-import { createSupabaseServerClient } from "@/lib/supabase";
+import { getAdminUser } from "@/lib/auth";
 import { parseProductCSV } from "@/lib/bulk-upload/csv-parser";
 import { extractImagesFromZip } from "@/lib/bulk-upload/zip-handler";
 import { validateProductRows, validateImageOnlyRows } from "@/lib/bulk-upload/validator";
@@ -15,12 +14,7 @@ const streamHeaders = {
 
 export async function POST(request: Request) {
   // Auth check — proxy does not cover /api routes
-  const cookieStore = await cookies();
-  const supabase = createSupabaseServerClient(cookieStore);
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
+  const user = await getAdminUser();
   if (!user) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }

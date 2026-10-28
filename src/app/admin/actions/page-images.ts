@@ -1,5 +1,6 @@
 "use server";
 
+import { requireAdmin } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
 import {
   adminUpsertPageImage,
@@ -11,6 +12,8 @@ export async function upsertPageImageAction(
   key: string,
   imageUrl: string
 ): Promise<{ success: boolean; message?: string }> {
+  await requireAdmin();
+
   try {
     await adminUpsertPageImage(key, imageUrl);
   } catch (error) {
@@ -28,6 +31,8 @@ export async function upsertPageImageAction(
 export async function deletePageImageAction(
   key: string
 ): Promise<{ success: boolean; message?: string }> {
+  await requireAdmin();
+
   try {
     await adminDeletePageImage(key);
     deleteImageFolder("pages", key).catch(() => {});

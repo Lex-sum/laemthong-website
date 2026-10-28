@@ -1,5 +1,6 @@
 "use server";
 
+import { requireAdmin } from "@/lib/auth";
 import { createSupabaseAdminClient } from "@/lib/supabase";
 import { revalidateEntity } from "@/lib/revalidation";
 
@@ -22,13 +23,19 @@ async function reorderEntities(
 }
 
 export async function reorderBrands(slugs: string[]) {
+  await requireAdmin();
+
   return reorderEntities("brands", slugs, "/admin/brands");
 }
 
 export async function reorderCategories(slugs: string[]) {
+  await requireAdmin();
+
   return reorderEntities("categories", slugs, "/admin/products");
 }
 
 export async function reorderProducts(slugs: string[]) {
+  await requireAdmin();
+
   return reorderEntities("products", slugs, "/admin/products");
 }
