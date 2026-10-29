@@ -4,6 +4,7 @@ import {
   adminGetProductBySlug,
   adminGetAllBrands,
   adminGetAllCategories,
+  adminGetSapInfoForSlug,
 } from "@/lib/db/admin";
 import { ProductForm } from "@/components/admin/product-form";
 import { AdminBreadcrumb } from "@/components/admin/admin-breadcrumb";
@@ -21,10 +22,11 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function EditProductPage({ params }: Props) {
   const { slug } = await params;
-  const [product, brands, categories] = await Promise.all([
+  const [product, brands, categories, sapInfo] = await Promise.all([
     adminGetProductBySlug(slug),
     adminGetAllBrands(),
     adminGetAllCategories(),
+    adminGetSapInfoForSlug(slug),
   ]);
 
   if (!product) notFound();
@@ -52,6 +54,7 @@ export default async function EditProductPage({ params }: Props) {
             product={product}
             brands={brands}
             categories={categories}
+            sapInfo={sapInfo}
           />
         </div>
       </div>

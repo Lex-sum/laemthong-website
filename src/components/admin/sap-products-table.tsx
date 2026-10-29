@@ -18,6 +18,7 @@ import { TableSearchBar } from "@/components/admin/table-search-bar";
 import { PaginationControls } from "@/components/admin/pagination-controls";
 import { EmptyTableState } from "@/components/admin/empty-table-state";
 import { cn } from "@/lib/utils";
+import { formatQty } from "@/lib/format";
 import type { SapStockListRow } from "@/lib/db/admin";
 
 interface SapProductsTableProps {
@@ -27,8 +28,6 @@ interface SapProductsTableProps {
   pageSize: number;
   totalPages: number;
 }
-
-const qtyFormat = new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 });
 
 export function SapProductsTable({
   items,
@@ -110,10 +109,10 @@ export function SapProductsTable({
                   <TableCell className="font-mono text-sm">{item.item_code}</TableCell>
                   <TableCell className="max-w-[320px] truncate">{item.item_name}</TableCell>
                   <TableCell className="text-right tabular-nums">
-                    {qtyFormat.format(item.on_hand)}
+                    {formatQty(item.on_hand)}
                   </TableCell>
                   <TableCell className="text-right tabular-nums">
-                    {qtyFormat.format(item.available)}
+                    {formatQty(item.available)}
                   </TableCell>
                   <TableCell className="hidden md:table-cell">
                     {item.matched ? (

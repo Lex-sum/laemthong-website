@@ -17,8 +17,10 @@ import { BilingualInput } from "./bilingual-input";
 import { BilingualTextarea } from "./bilingual-textarea";
 import { ManageCategoriesDialog } from "./manage-categories-dialog";
 import { QuickCreateBrandDialog } from "./quick-create-brand-dialog";
+import { SapStockPanel } from "./sap-stock-panel";
 import Image from "next/image";
 import type { DbBrand, DbCategory } from "@/data/types";
+import type { SapProductInfo } from "@/lib/db/admin";
 
 interface ProductBasicInfoTabProps {
   product?: {
@@ -28,6 +30,8 @@ interface ProductBasicInfoTabProps {
   };
   /** Pre-fills both TH and EN short description for new products (still editable). */
   defaultShortDescription?: string;
+  /** SAP B1 stock for this slug; omit to hide the panel. */
+  sapInfo?: SapProductInfo;
   isEditing: boolean;
   slug: string;
   onSlugChange: (slug: string) => void;
@@ -48,6 +52,7 @@ interface ProductBasicInfoTabProps {
 export function ProductBasicInfoTab({
   product,
   defaultShortDescription,
+  sapInfo,
   isEditing,
   slug,
   onSlugChange,
@@ -94,6 +99,8 @@ export function ProductBasicInfoTab({
         editWarning="Changing the slug will migrate product images to the new URL path"
         error={errors?.slug?.[0]}
       />
+
+      {sapInfo && <SapStockPanel info={sapInfo} />}
 
       <BilingualTextarea
         label="Short Description"

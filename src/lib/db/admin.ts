@@ -451,3 +451,25 @@ export async function adminGetSapStockByCode(
   if (error || !data) return null;
   return data as SapStockRow;
 }
+
+export interface SapProductInfo {
+  /** SAP item whose code equals the product slug. */
+  match: SapStockRow | null;
+  /** Other SAP items with exactly the same name as `match`. */
+  sameName: SapStockRow[];
+}
+
+export async function adminGetSapInfoForSlug(slug: string): Promise<SapProductInfo> {
+  const match = await adminGetSapStockByCode(slug);
+  if (!match) return { match: null, sameName: [] };
+
+  const supabase = createSupabaseAdminClient();
+  const { data, error } = await supabase
+    .from("sap_stock")
+    .select(SAP_STOCK_COLUMNS)
+    .eq("item_name", match.item_name)
+    .neq("item_code", slug)
+    .order("item_code", { ascending: true });
+
+  return { match, sameName: error ? [] : (data as SapStockRow[]) };
+}
