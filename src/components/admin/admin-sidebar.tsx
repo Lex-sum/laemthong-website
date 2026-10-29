@@ -22,12 +22,13 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
-import { LayoutDashboard, Package, Building2, MessageSquare, ImageIcon, ChevronRight } from "lucide-react";
+import { LayoutDashboard, Package, Building2, MessageSquare, ImageIcon, ChevronRight, Warehouse } from "lucide-react";
 import { TABS } from "@/data/page-image-slots";
 
 const navItems = [
   { title: "Dashboard", href: "/admin", icon: LayoutDashboard },
   { title: "Products", href: "/admin/products", icon: Package },
+  { title: "Products in SAP B1", href: "/admin/sap-products", icon: Warehouse },
   { title: "Brands", href: "/admin/brands", icon: Building2 },
   { title: "Inquiries", href: "/admin/inquiries", icon: MessageSquare },
 ];

@@ -26,6 +26,8 @@ interface ProductBasicInfoTabProps {
     short_description: { th: string; en: string };
     slug: string;
   };
+  /** Pre-fills both TH and EN short description for new products (still editable). */
+  defaultShortDescription?: string;
   isEditing: boolean;
   slug: string;
   onSlugChange: (slug: string) => void;
@@ -45,6 +47,7 @@ interface ProductBasicInfoTabProps {
 
 export function ProductBasicInfoTab({
   product,
+  defaultShortDescription,
   isEditing,
   slug,
   onSlugChange,
@@ -96,8 +99,8 @@ export function ProductBasicInfoTab({
         label="Short Description"
         nameTh="shortDescriptionTh"
         nameEn="shortDescriptionEn"
-        defaultValueTh={product?.short_description.th}
-        defaultValueEn={product?.short_description.en}
+        defaultValueTh={product?.short_description.th ?? defaultShortDescription}
+        defaultValueEn={product?.short_description.en ?? defaultShortDescription}
         required
         rows={2}
         errorTh={errors?.shortDescriptionTh?.[0]}

@@ -353,3 +353,101 @@ export async function adminDeleteContactInquiry(id: string): Promise<void> {
     .eq("id", id);
   if (error) throw error;
 }
+
+// ─── SAP Stock ──────────────────────────────────────────────────────────────
+
+export interface SapStockRow {
+  item_code: string;
+  item_name: string;
+  on_hand: number;
+  available: number;
+  synced_at: string;
+}
+
+export interface SapStockListRow extends SapStockRow {
+  /** A product exists whose slug equals item_code. */
+  matched: boolean;
+}
+
+export interface AdminSapStockQuery {
+  page?: number;
+  pageSize?: number;
+  search?: string;
+}
+
+export interface AdminSapStockResult {
+  items: SapStockListRow[];
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+  lastSyncedAt: string | null;
+}
+
+const SAP_STOCK_COLUMNS = "item_code, item_name, on_hand, available, synced_at";
+
+export async function adminGetSapStock(
+  query: AdminSapStockQuery = {}
+): Promise<AdminSapStockResult> {
+  const { page = 1, pageSize = 20, search } = query;
+  const supabase = createSupabaseAdminClient();
+
+  let q = supabase.from("sap_stock").select(SAP_STOCK_COLUMNS, { count: "exact" });
+
+  if (search) {
+    const term = `%${search}%`;
+    q = q.or(`item_code.ilike.${term},item_name.ilike.${term}`);
+  }
+
+  const from = (page - 1) * pageSize;
+  const to = from + pageSize - 1;
+
+  const [{ data, error, count }, { data: latest }] = await Promise.all([
+    q.order("item_code", { ascending: true }).range(from, to),
+    supabase
+      .from("sap_stock")
+      .select("synced_at")
+      .order("synced_at", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+  ]);
+
+  if (error) {
+    return { items: [], total: 0, page, pageSize, totalPages: 0, lastSyncedAt: null };
+  }
+
+  const rows = data as SapStockRow[];
+
+  // One lookup for the whole page: which item codes already exist as product slugs
+  const matchedSlugs = new Set<string>();
+  if (rows.length > 0) {
+    const { data: products } = await supabase
+      .from("products")
+      .select("slug")
+      .in("slug", rows.map((r) => r.item_code));
+    for (const p of products ?? []) matchedSlugs.add(p.slug);
+  }
+
+  const total = count ?? 0;
+  return {
+    items: rows.map((r) => ({ ...r, matched: matchedSlugs.has(r.item_code) })),
+    total,
+    page,
+    pageSize,
+    totalPages: Math.ceil(total / pageSize),
+    lastSyncedAt: latest?.synced_at ?? null,
+  };
+}
+
+export async function adminGetSapStockByCode(
+  itemCode: string
+): Promise<SapStockRow | null> {
+  const supabase = createSupabaseAdminClient();
+  const { data, error } = await supabase
+    .from("sap_stock")
+    .select(SAP_STOCK_COLUMNS)
+    .eq("item_code", itemCode)
+    .maybeSingle();
+  if (error || !data) return null;
+  return data as SapStockRow;
+}

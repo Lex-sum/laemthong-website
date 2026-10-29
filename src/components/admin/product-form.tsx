@@ -23,13 +23,20 @@ import { useUnsavedChanges } from "@/hooks/use-unsaved-changes";
 import { useUnsavedChangesContext } from "./unsaved-changes-provider";
 import type { DbProduct, DbBrand, DbCategory, LocalizedString } from "@/data/types";
 
+/** Editable starting values for a new product (e.g. from a SAP B1 item). */
+export interface ProductFormDefaults {
+  slug?: string;
+  shortDescription?: string;
+}
+
 interface ProductFormProps {
   product?: DbProduct;
   brands: DbBrand[];
   categories: DbCategory[];
+  defaults?: ProductFormDefaults;
 }
 
-export function ProductForm({ product, brands, categories }: ProductFormProps) {
+export function ProductForm({ product, brands, categories, defaults }: ProductFormProps) {
   const isEditing = !!product;
   const action = isEditing ? updateProductAction : createProductAction;
 
@@ -46,9 +53,10 @@ export function ProductForm({ product, brands, categories }: ProductFormProps) {
   const tempSlug = `temp-${tempId.replace(/:/g, "")}`;
 
   const { slug: currentSlug, setSlug: setCurrentSlug, isCustomSlug, setIsCustomSlug, handleNameChange } = useFormSlug({
-    initialSlug: product?.slug ?? "",
+    initialSlug: product?.slug ?? defaults?.slug ?? "",
     initialName: product?.name.en ?? "",
     isEditing,
+    initialCustom: !product && !!defaults?.slug,
   });
 
   const [specifications, setSpecifications] = useState<
@@ -72,7 +80,7 @@ export function ProductForm({ product, brands, categories }: ProductFormProps) {
 
   // Dirty state tracking for unsaved changes warning
   const [initialValues] = useState({
-    slug: product?.slug ?? "",
+    slug: product?.slug ?? defaults?.slug ?? "",
     images: JSON.stringify(product?.images ?? []),
     specifications: JSON.stringify(product?.specifications ?? []),
     features: JSON.stringify(product?.features ?? []),
@@ -184,6 +192,7 @@ export function ProductForm({ product, brands, categories }: ProductFormProps) {
         <TabsContent value="basic" forceMount className="data-[state=inactive]:hidden pt-4">
           <ProductBasicInfoTab
             product={product}
+            defaultShortDescription={defaults?.shortDescription}
             isEditing={isEditing}
             slug={currentSlug}
             onSlugChange={setCurrentSlug}

@@ -7,15 +7,19 @@ interface UseFormSlugOptions {
   initialSlug: string;
   initialName: string;
   isEditing: boolean;
+  /** Start in custom mode (e.g. slug pre-filled from SAP) so the name doesn't overwrite it. */
+  initialCustom?: boolean;
 }
 
 export function useFormSlug({
   initialSlug,
   initialName,
   isEditing,
+  initialCustom = false,
 }: UseFormSlugOptions) {
   const [isCustomSlug, setIsCustomSlug] = useState(() =>
-    isEditing && initialName ? initialSlug !== slugify(initialName) : false
+    initialCustom ||
+    (isEditing && initialName ? initialSlug !== slugify(initialName) : false)
   );
   const [customSlug, setCustomSlug] = useState(initialSlug);
   const [trackedName, setTrackedName] = useState(initialName);
