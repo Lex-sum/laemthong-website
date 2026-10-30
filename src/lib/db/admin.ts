@@ -642,3 +642,40 @@ export async function adminListUsers(): Promise<AdminUserRow[]> {
     }))
     .sort((a, b) => a.email.localeCompare(b.email));
 }
+
+// ─── Activity Log ───────────────────────────────────────────────────────────
+
+export interface ActivityRow {
+  id: number;
+  created_at: string;
+  user_email: string | null;
+  action: string;
+  entity: string;
+  entity_id: string | null;
+  summary: string | null;
+}
+
+export async function adminGetActivity(query: {
+  page?: number;
+  pageSize?: number;
+  entity?: string;
+  userEmail?: string;
+}): Promise<{ rows: ActivityRow[]; total: number; page: number; pageSize: number; totalPages: number }> {
+  const { page = 1, pageSize = 50, entity, userEmail } = query;
+  const supabase = createSupabaseAdminClient();
+
+  let q = supabase
+    .from("activity_log")
+    .select("id, created_at, user_email, action, entity, entity_id, summary", { count: "exact" });
+  if (entity) q = q.eq("entity", entity);
+  if (userEmail) q = q.eq("user_email", userEmail);
+
+  const from = (page - 1) * pageSize;
+  const { data, error, count } = await q
+    .order("created_at", { ascending: false })
+    .range(from, from + pageSize - 1);
+
+  if (error) return { rows: [], total: 0, page, pageSize, totalPages: 0 };
+  const total = count ?? 0;
+  return { rows: data as ActivityRow[], total, page, pageSize, totalPages: Math.ceil(total / pageSize) };
+}
