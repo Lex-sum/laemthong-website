@@ -272,7 +272,8 @@ export function ProductBasicInfoTab({
           <Label htmlFor="featured">Featured product</Label>
         </div>
         <p className="text-xs text-muted-foreground">
-          Featured products appear in the homepage hero section
+          Shown in &quot;Featured Products&quot; on the home page, in the same order as the Products list.
+          Pick 3, 6 or 9 so the 3-column grid has full rows.
         </p>
       </div>
     </div>
