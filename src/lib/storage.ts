@@ -2,7 +2,7 @@ import { createSupabaseAdminClient } from "@/lib/supabase";
 
 const BUCKET = "images";
 
-export type ImageFolder = "products" | "brands" | "categories" | "pages";
+export type ImageFolder = "products" | "brands" | "categories" | "pages" | "services";
 
 /**
  * Upload a single image file to Supabase Storage.

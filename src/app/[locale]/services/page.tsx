@@ -10,7 +10,7 @@ import { AnimateOnScroll } from "@/components/shared/animate-on-scroll";
 import { PageHero } from "@/components/shared/page-hero";
 import { PlaceholderImage } from "@/components/shared/placeholder-image";
 import { getPageImages } from "@/lib/db";
-import { SERVICES } from "@/data/services";
+import { getAllServices } from "@/lib/db/services";
 import { STAGGER_DELAY } from "@/lib/constants";
 import {
   getPageUrl,
@@ -61,7 +61,7 @@ export default async function ServicesPage({ params }: Props) {
   const tTrust = await getTranslations({ locale, namespace: "trust" });
   const tNav = await getTranslations({ locale, namespace: "nav" });
   const tCommon = await getTranslations({ locale, namespace: "common" });
-  const pageImages = await getPageImages();
+  const [pageImages, services] = await Promise.all([getPageImages(), getAllServices()]);
   const heroImage = pageImages.get("hero-services") ?? undefined;
 
   return (
@@ -79,11 +79,10 @@ export default async function ServicesPage({ params }: Props) {
       <section className="bg-muted/30 py-16 md:py-20">
         <div className="mx-auto max-w-7xl px-6">
           <div className="grid gap-8 md:grid-cols-2">
-            {SERVICES.map((service, index) => {
-              const serviceImage = pageImages.get(`service-${service.slug}`) ?? null;
-              const features = t.raw(
-                `${service.slug}.features`,
-              ) as string[];
+            {services.map((service, index) => {
+              const serviceImage =
+                service.imageUrl ?? pageImages.get(`service-${service.slug}`) ?? null;
+              const features = service.features.map((f) => f[loc]);
               return (
                 <AnimateOnScroll
                   key={service.slug}
@@ -97,7 +96,7 @@ export default async function ServicesPage({ params }: Props) {
                         {serviceImage ? (
                           <FadeImage
                             src={serviceImage}
-                            alt={t(`${service.slug}.title`)}
+                            alt={service.title[loc]}
                             fill
                             className="object-cover transition-[opacity,transform] duration-300 group-hover:scale-105"
                             sizes="(max-width: 768px) 100vw, 50vw"
@@ -111,10 +110,10 @@ export default async function ServicesPage({ params }: Props) {
                       {/* Content */}
                       <div className="p-6 md:p-8">
                         <h2 className="text-xl font-bold text-foreground md:text-2xl">
-                          {t(`${service.slug}.title`)}
+                          {service.title[loc]}
                         </h2>
                         <p className="mt-3 leading-relaxed text-muted-foreground">
-                          {t(`${service.slug}.shortDescription`)}
+                          {service.shortDescription[loc]}
                         </p>
                         <ul className="mt-5 space-y-2">
                           {features.slice(0, 4).map((feature, i) => (

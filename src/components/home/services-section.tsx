@@ -1,19 +1,20 @@
 import { FadeImage } from "@/components/shared/fade-image";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { Link } from "@/i18n/navigation";
 import { ArrowRight } from "lucide-react";
 import { AnimateOnScroll } from "@/components/shared/animate-on-scroll";
 import { PlaceholderImage } from "@/components/shared/placeholder-image";
-import { SERVICES } from "@/data/services";
 import { STAGGER_DELAY } from "@/lib/constants";
+import type { Locale, Service } from "@/data/types";
 
 type Props = {
+  services: Service[];
   pageImages: Map<string, string>;
 };
 
-export function ServicesSection({ pageImages }: Props) {
+export function ServicesSection({ services, pageImages }: Props) {
   const t = useTranslations("home");
-  const tServices = useTranslations("services");
+  const locale = useLocale() as Locale;
 
   return (
     <section className="bg-foreground py-16 md:py-20">
@@ -34,8 +35,9 @@ export function ServicesSection({ pageImages }: Props) {
 
         {/* Service cards grid */}
         <div className="mt-12 grid grid-cols-2 gap-4 md:grid-cols-4 md:gap-6">
-          {SERVICES.map((service, index) => {
-            const serviceImage = pageImages.get(`service-${service.slug}`) ?? null;
+          {services.map((service, index) => {
+            const serviceImage =
+              service.imageUrl ?? pageImages.get(`service-${service.slug}`) ?? null;
             return (
               <AnimateOnScroll key={service.slug} delay={index * STAGGER_DELAY}>
                 <Link href={`/services/${service.slug}`} className="group block">
@@ -45,7 +47,7 @@ export function ServicesSection({ pageImages }: Props) {
                       {serviceImage ? (
                         <FadeImage
                           src={serviceImage}
-                          alt={tServices(`${service.slug}.title`)}
+                          alt={service.title[locale]}
                           fill
                           className="object-cover transition-[opacity,transform] duration-300 group-hover:scale-105"
                           sizes="(max-width: 768px) 50vw, 25vw"
@@ -61,10 +63,10 @@ export function ServicesSection({ pageImages }: Props) {
                     {/* Text */}
                     <div className="p-4 md:p-5">
                       <h3 className="font-semibold text-background transition-colors group-hover:text-primary">
-                        {tServices(`${service.slug}.title`)}
+                        {service.title[locale]}
                       </h3>
                       <p className="mt-1.5 line-clamp-2 text-sm leading-relaxed text-background/60">
-                        {tServices(`${service.slug}.shortDescription`)}
+                        {service.shortDescription[locale]}
                       </p>
                     </div>
                   </div>
@@ -75,7 +77,7 @@ export function ServicesSection({ pageImages }: Props) {
         </div>
 
         {/* View all link */}
-        <AnimateOnScroll delay={SERVICES.length * STAGGER_DELAY}>
+        <AnimateOnScroll delay={services.length * STAGGER_DELAY}>
           <div className="mt-10 text-center">
             <Link
               href="/services"

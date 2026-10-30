@@ -5,7 +5,7 @@ import { createSupabaseAdminClient } from "@/lib/supabase";
  * Returns (max_sort_order + 10) or 10 if no rows exist.
  */
 export async function getNextSortOrder(
-  table: "brands" | "categories" | "products"
+  table: "brands" | "categories" | "products" | "services"
 ): Promise<number> {
   const supabase = createSupabaseAdminClient();
   const { data } = await supabase

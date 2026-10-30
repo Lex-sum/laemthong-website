@@ -1,6 +1,14 @@
 import { createSupabaseAdminClient } from "@/lib/supabase";
 import { getRole, mustChangePassword, type AdminRole } from "@/lib/admin-roles";
-import type { DbBrand, DbCategory, DbProduct, DbPageImage, DbCompanyInfo } from "@/data/types";
+import { SERVICE_COLUMNS } from "@/lib/db/services";
+import type {
+  DbBrand,
+  DbCategory,
+  DbProduct,
+  DbPageImage,
+  DbCompanyInfo,
+  DbService,
+} from "@/data/types";
 
 // ─── Brands ──────────────────────────────────────────────────────────────────
 
@@ -285,6 +293,55 @@ export async function adminDeletePageImage(key: string): Promise<void> {
     .from("page_images")
     .delete()
     .eq("key", key);
+  if (error) throw error;
+}
+
+// ─── Services ───────────────────────────────────────────────────────────────
+
+export async function adminGetAllServices(): Promise<DbService[]> {
+  const supabase = createSupabaseAdminClient();
+  const { data, error } = await supabase
+    .from("services")
+    .select(SERVICE_COLUMNS)
+    .order("sort_order", { ascending: true });
+  if (error) throw error;
+  return data as DbService[];
+}
+
+export async function adminGetServiceBySlug(slug: string): Promise<DbService | null> {
+  const supabase = createSupabaseAdminClient();
+  const { data, error } = await supabase
+    .from("services")
+    .select(SERVICE_COLUMNS)
+    .eq("slug", slug)
+    .maybeSingle();
+  if (error) throw error;
+  return data as DbService | null;
+}
+
+export type ServiceWrite = Omit<DbService, "updated_at" | "icon">;
+
+export async function adminCreateService(values: ServiceWrite): Promise<void> {
+  const supabase = createSupabaseAdminClient();
+  const { error } = await supabase.from("services").insert({ ...values, icon: "wrench" });
+  if (error) throw error;
+}
+
+export async function adminUpdateService(
+  originalSlug: string,
+  values: Partial<ServiceWrite>
+): Promise<void> {
+  const supabase = createSupabaseAdminClient();
+  const { error } = await supabase
+    .from("services")
+    .update({ ...values, updated_at: new Date().toISOString() })
+    .eq("slug", originalSlug);
+  if (error) throw error;
+}
+
+export async function adminDeleteService(slug: string): Promise<void> {
+  const supabase = createSupabaseAdminClient();
+  const { error } = await supabase.from("services").delete().eq("slug", slug);
   if (error) throw error;
 }
 

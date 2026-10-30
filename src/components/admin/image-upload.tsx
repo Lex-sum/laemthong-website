@@ -34,6 +34,7 @@ const MAX_DIMENSIONS: Record<ImageFolder, number> = {
   products: 1200,
   categories: 1200,
   pages: 1600,
+  services: 1200,
 };
 
 interface ImageUploadProps {

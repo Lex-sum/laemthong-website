@@ -24,11 +24,20 @@ import type { LocalizedString } from "@/data/types";
 interface ProductFeaturesSectionProps {
   features: LocalizedString[];
   onFeaturesChange: (features: LocalizedString[]) => void;
+  /** Overrides for reuse outside the product form (e.g. service expertise). */
+  label?: string;
+  description?: string;
+  itemName?: string;
+  dndId?: string;
 }
 
 export function ProductFeaturesSection({
   features,
   onFeaturesChange,
+  label = "Features (Optional)",
+  description = "Key benefits or highlights displayed as bullet points on the product page",
+  itemName = "Feature",
+  dndId = "product-features",
 }: ProductFeaturesSectionProps) {
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -58,24 +67,24 @@ export function ProductFeaturesSection({
     <div className="space-y-3">
       <div className="space-y-2">
         <div className="flex items-center justify-between">
-          <Label>Features (Optional)</Label>
+          <Label>{label}</Label>
           <Button
             type="button"
             variant="outline"
             size="sm"
             onClick={() => onFeaturesChange([...features, { th: "", en: "" }])}
           >
-            Add Feature
+            Add {itemName}
           </Button>
         </div>
         <p className="text-xs text-muted-foreground">
-          Key benefits or highlights displayed as bullet points on the product page
+          {description}
         </p>
       </div>
 
       {features.length > 0 && (
         <DndContext
-          id="product-features"
+          id={dndId}
           sensors={sensors}
           collisionDetection={closestCenter}
           onDragEnd={handleDragEnd}
@@ -86,14 +95,14 @@ export function ProductFeaturesSection({
                 <SortableFieldItem
                   key={ids[i]}
                   id={ids[i]}
-                  title={feature.en || feature.th || `Feature #${i + 1}`}
+                  title={feature.en || feature.th || `${itemName} #${i + 1}`}
                   onRemove={() =>
                     onFeaturesChange(features.filter((_, j) => j !== i))
                   }
                 >
                   <div className="grid gap-2 sm:grid-cols-2">
                     <Input
-                      placeholder="Feature (TH)"
+                      placeholder={`${itemName} (TH)`}
                       value={feature.th}
                       onChange={(e) => {
                         const updated = [...features];
@@ -102,7 +111,7 @@ export function ProductFeaturesSection({
                       }}
                     />
                     <Input
-                      placeholder="Feature (EN)"
+                      placeholder={`${itemName} (EN)`}
                       value={feature.en}
                       onChange={(e) => {
                         const updated = [...features];

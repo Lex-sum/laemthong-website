@@ -8,6 +8,7 @@ import { CtaSection } from "@/components/home/cta-section";
 import { ServicesSection } from "@/components/home/services-section";
 import { JsonLd } from "@/components/shared/json-ld";
 import { getFeaturedProducts, getAllBrands, getSiteCompany, getPageImage, getPageImages } from "@/lib/db";
+import { getAllServices } from "@/lib/db/services";
 
 const BrandShowcase = dynamic(
   () => import("@/components/home/brand-showcase").then((m) => m.BrandShowcase),
@@ -60,12 +61,13 @@ export default async function HomePage({ params }: Props) {
   const { locale } = await params;
   setRequestLocale(locale);
 
-  const [featuredProducts, brands, company, heroImage, pageImages] = await Promise.all([
+  const [featuredProducts, brands, company, heroImage, pageImages, services] = await Promise.all([
     getFeaturedProducts(),
     getAllBrands(),
     getSiteCompany(),
     getPageImage("home-hero"),
     getPageImages(),
+    getAllServices(),
   ]);
 
   return (
@@ -81,7 +83,7 @@ export default async function HomePage({ params }: Props) {
       <UspSection />
       <FeaturedProducts products={featuredProducts} />
       <BrandShowcase brands={brands} />
-      <ServicesSection pageImages={pageImages} />
+      <ServicesSection services={services} pageImages={pageImages} />
       <CtaSection email={company.email} phone={company.phone} />
     </>
   );

@@ -10,7 +10,7 @@ import { FadeImage } from "@/components/shared/fade-image";
 import { PlaceholderImage } from "@/components/shared/placeholder-image";
 import { JsonLd } from "@/components/shared/json-ld";
 import { getPageImages } from "@/lib/db";
-import { SERVICES, SERVICE_SLUGS, getServiceBySlug } from "@/data/services";
+import { getAllServices, getServiceBySlug } from "@/lib/db/services";
 import {
   getPageUrl,
   getAlternateLanguages,
@@ -21,8 +21,9 @@ import {
 } from "@/lib/seo";
 import type { Locale } from "@/data/types";
 
-export function generateStaticParams() {
-  return SERVICE_SLUGS.map((slug) => ({ slug }));
+export async function generateStaticParams() {
+  const services = await getAllServices();
+  return services.map((s) => ({ slug: s.slug }));
 }
 
 type Props = {
@@ -32,12 +33,11 @@ type Props = {
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { locale, slug } = await params;
   const loc = locale as Locale;
-  const service = getServiceBySlug(slug);
+  const service = await getServiceBySlug(slug);
   if (!service) return {};
 
-  const t = await getTranslations({ locale, namespace: "services" });
-  const title = t(`${slug}.metaTitle`);
-  const description = t(`${slug}.metaDescription`);
+  const title = service.metaTitle[loc] || service.title[loc];
+  const description = service.metaDescription[loc] || service.shortDescription[loc];
   const pageUrl = getPageUrl(loc, `/services/${slug}`);
 
   return {
@@ -61,7 +61,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function ServiceDetailPage({ params }: Props) {
   const { locale, slug } = await params;
-  const service = getServiceBySlug(slug);
+  const service = await getServiceBySlug(slug);
   if (!service) notFound();
 
   setRequestLocale(locale);
@@ -70,16 +70,20 @@ export default async function ServiceDetailPage({ params }: Props) {
   const tNav = await getTranslations({ locale, namespace: "nav" });
   const tCommon = await getTranslations({ locale, namespace: "common" });
 
-  const pageImages = await getPageImages();
-  const serviceImage = pageImages.get(`service-${slug}`) ?? null;
+  const [pageImages, allServices] = await Promise.all([getPageImages(), getAllServices()]);
+  // Service image from the services table; older page_images slots are a fallback
+  const imageFor = (s: { slug: string; imageUrl: string | null }) =>
+    s.imageUrl ?? pageImages.get(`service-${s.slug}`) ?? null;
+  const serviceImage = imageFor(service);
+  const title = service.title[loc];
 
-  const features = t.raw(`${slug}.features`) as string[];
-  const processSteps = t.raw(`${slug}.processSteps`) as {
-    title: string;
-    description: string;
-  }[];
-  const expertise = t.raw(`${slug}.expertise`) as string[];
-  const otherServices = SERVICES.filter((s) => s.slug !== slug);
+  const features = service.features.map((f) => f[loc]);
+  const processSteps = service.processSteps.map((step) => ({
+    title: step.title[loc],
+    description: step.description[loc],
+  }));
+  const expertise = service.expertise.map((e) => e[loc]);
+  const otherServices = allServices.filter((s) => s.slug !== slug);
 
   return (
     <>
@@ -87,22 +91,22 @@ export default async function ServiceDetailPage({ params }: Props) {
         data={buildServiceSchema(
           slug,
           loc,
-          t(`${slug}.title`),
-          t(`${slug}.description`),
+          title,
+          service.description[loc],
         )}
       />
       <JsonLd
         data={buildBreadcrumbSchema(loc, [
           { name: tNav("home"), href: "/" },
           { name: t("title"), href: "/services" },
-          { name: t(`${slug}.title`), href: `/services/${slug}` },
+          { name: title, href: `/services/${slug}` },
         ])}
       />
 
       <BreadcrumbBar items={[
         { label: tNav("home"), href: "/" },
         { label: t("title"), href: "/services" },
-        { label: t(`${slug}.title`) },
+        { label: title },
       ]} />
 
       {/* Hero */}
@@ -114,7 +118,7 @@ export default async function ServiceDetailPage({ params }: Props) {
               {serviceImage ? (
                 <FadeImage
                   src={serviceImage}
-                  alt={t(`${slug}.title`)}
+                  alt={title}
                   width={800}
                   height={600}
                   className="aspect-[4/3] w-full object-cover"
@@ -129,10 +133,10 @@ export default async function ServiceDetailPage({ params }: Props) {
           <div className="grid gap-10 lg:grid-cols-[1fr_480px] lg:items-center">
             <div>
               <h1 className="text-4xl font-bold tracking-tight text-foreground md:text-5xl">
-                {t(`${slug}.title`)}
+                {title}
               </h1>
-              <p className="mt-6 max-w-3xl text-lg leading-relaxed text-muted-foreground">
-                {t(`${slug}.description`)}
+              <p className="mt-6 max-w-3xl whitespace-pre-line text-lg leading-relaxed text-muted-foreground">
+                {service.description[loc]}
               </p>
             </div>
             {/* Desktop image — side-by-side layout */}
@@ -141,7 +145,7 @@ export default async function ServiceDetailPage({ params }: Props) {
                 {serviceImage ? (
                   <FadeImage
                     src={serviceImage}
-                    alt={t(`${slug}.title`)}
+                    alt={title}
                     width={600}
                     height={450}
                     className="aspect-[4/3] w-full object-cover"
@@ -230,7 +234,7 @@ export default async function ServiceDetailPage({ params }: Props) {
           <SectionHeading title={t("otherServices")} />
           <div className="grid gap-6 sm:grid-cols-3">
             {otherServices.map((other) => {
-              const otherImage = pageImages.get(`service-${other.slug}`) ?? null;
+              const otherImage = imageFor(other);
               return (
                 <Link
                   key={other.slug}
@@ -241,7 +245,7 @@ export default async function ServiceDetailPage({ params }: Props) {
                     {otherImage ? (
                       <FadeImage
                         src={otherImage}
-                        alt={t(`${other.slug}.title`)}
+                        alt={other.title[loc]}
                         fill
                         className="object-cover transition-[opacity,transform] duration-300 group-hover:scale-105"
                         sizes="(max-width: 640px) 100vw, 33vw"
@@ -253,10 +257,10 @@ export default async function ServiceDetailPage({ params }: Props) {
                   <div className="h-px w-full bg-border transition-colors duration-300 group-hover:bg-primary" />
                   <div className="p-4">
                     <h3 className="font-semibold text-foreground group-hover:text-primary">
-                      {t(`${other.slug}.title`)}
+                      {other.title[loc]}
                     </h3>
                     <p className="mt-2 text-sm text-muted-foreground line-clamp-2">
-                      {t(`${other.slug}.shortDescription`)}
+                      {other.shortDescription[loc]}
                     </p>
                   </div>
                 </Link>
