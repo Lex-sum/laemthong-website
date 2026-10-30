@@ -1,7 +1,7 @@
 import { Link } from "@/i18n/navigation";
 import { ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { COMPANY } from "@/lib/constants";
+import { getSiteCompany } from "@/lib/db/company";
 
 type Props = {
   title: string;
@@ -10,7 +10,9 @@ type Props = {
   buttonLabel: string;
 };
 
-export function CtaContactSection({ title, description, getInTouchLabel, buttonLabel }: Props) {
+export async function CtaContactSection({ title, description, getInTouchLabel, buttonLabel }: Props) {
+  const company = await getSiteCompany();
+
   return (
     <section className="border-t py-20 md:py-28">
       <div className="mx-auto max-w-7xl px-6">
@@ -28,10 +30,10 @@ export function CtaContactSection({ title, description, getInTouchLabel, buttonL
               {getInTouchLabel}
             </p>
             <p className="mt-3 text-xl font-semibold text-background">
-              {COMPANY.email}
+              {company.email}
             </p>
             <p className="mt-1 text-lg text-background/70">
-              {COMPANY.phone}
+              {company.phone}
             </p>
             <Button asChild variant="accent" size="lg" className="mt-6 gap-2">
               <Link href="/contact">

@@ -4,19 +4,20 @@ import { useTranslations } from "next-intl";
 import { AnimateOnScroll } from "@/components/shared/animate-on-scroll";
 import { useInView } from "@/hooks/use-in-view";
 import { useCountUp } from "@/hooks/use-count-up";
-import { COMPANY, STAGGER_DELAY } from "@/lib/constants";
+import { STAGGER_DELAY } from "@/lib/constants";
 import { cn } from "@/lib/utils";
+import type { CompanyStats } from "@/data/types";
 
-const stats = [
-  { target: COMPANY.stats.years, suffix: "+", labelKey: "statsYears" },
-  { target: COMPANY.stats.brands, suffix: "+", labelKey: "statsBrands" },
-  { target: COMPANY.stats.products, suffix: "+", labelKey: "statsProducts" },
-  { target: COMPANY.stats.clients, suffix: "+", labelKey: "statsClients" },
-] as const;
-
-export function StatsStrip({ hasImage }: { hasImage: boolean }) {
+export function StatsStrip({ hasImage, stats: values }: { hasImage: boolean; stats: CompanyStats }) {
   const t = useTranslations("hero");
   const { ref, isInView } = useInView();
+
+  const stats = [
+    { target: values.years, suffix: "+", labelKey: "statsYears" },
+    { target: values.brands, suffix: "+", labelKey: "statsBrands" },
+    { target: values.products, suffix: "+", labelKey: "statsProducts" },
+    { target: values.clients, suffix: "+", labelKey: "statsClients" },
+  ] as const;
 
   return (
     <div

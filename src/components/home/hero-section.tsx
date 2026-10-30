@@ -5,14 +5,16 @@ import { ArrowRight, Phone } from "lucide-react";
 import { HeroBackground } from "@/components/shared/hero-background";
 import { HeroThemeSetter } from "@/components/shared/hero-theme-setter";
 import { StatsStrip } from "@/components/home/stats-strip";
-import { COMPANY } from "@/lib/constants";
 import { cn } from "@/lib/utils";
+import type { CompanyStats } from "@/data/types";
 
 type HeroSectionProps = {
   backgroundImage?: string;
+  foundedYear: number;
+  stats: CompanyStats;
 };
 
-export function HeroSection({ backgroundImage }: HeroSectionProps) {
+export function HeroSection({ backgroundImage, foundedYear, stats }: HeroSectionProps) {
   const t = useTranslations("hero");
   const hasImage = !!backgroundImage;
 
@@ -34,7 +36,7 @@ export function HeroSection({ backgroundImage }: HeroSectionProps) {
           )}
         >
           <span className="inline-block h-px w-8 bg-primary" />
-          {`Since ${COMPANY.foundedYear}`}
+          {`Since ${foundedYear}`}
         </p>
 
         {/* Heading */}
@@ -86,7 +88,7 @@ export function HeroSection({ backgroundImage }: HeroSectionProps) {
         </div>
 
         {/* Stats strip */}
-        <StatsStrip hasImage={hasImage} />
+        <StatsStrip hasImage={hasImage} stats={stats} />
       </div>
     </section>
   );

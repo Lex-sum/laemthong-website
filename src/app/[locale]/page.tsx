@@ -7,7 +7,7 @@ import { FeaturedProducts } from "@/components/home/featured-products";
 import { CtaSection } from "@/components/home/cta-section";
 import { ServicesSection } from "@/components/home/services-section";
 import { JsonLd } from "@/components/shared/json-ld";
-import { getFeaturedProducts, getAllBrands, getCompanyInfo, getPageImage, getPageImages } from "@/lib/db";
+import { getFeaturedProducts, getAllBrands, getSiteCompany, getPageImage, getPageImages } from "@/lib/db";
 
 const BrandShowcase = dynamic(
   () => import("@/components/home/brand-showcase").then((m) => m.BrandShowcase),
@@ -63,22 +63,26 @@ export default async function HomePage({ params }: Props) {
   const [featuredProducts, brands, company, heroImage, pageImages] = await Promise.all([
     getFeaturedProducts(),
     getAllBrands(),
-    getCompanyInfo(),
+    getSiteCompany(),
     getPageImage("home-hero"),
     getPageImages(),
   ]);
 
   return (
     <>
-      {company && <JsonLd data={buildOrganizationSchema(company, locale as Locale)} />}
-      {company && <JsonLd data={buildLocalBusinessSchema(company, locale as Locale)} />}
+      <JsonLd data={buildOrganizationSchema(company, locale as Locale)} />
+      <JsonLd data={buildLocalBusinessSchema(company, locale as Locale)} />
       <JsonLd data={buildWebSiteSchema(locale as Locale)} />
-      <HeroSection backgroundImage={heroImage ?? undefined} />
+      <HeroSection
+        backgroundImage={heroImage ?? undefined}
+        foundedYear={company.yearEstablished}
+        stats={company.stats}
+      />
       <UspSection />
       <FeaturedProducts products={featuredProducts} />
       <BrandShowcase brands={brands} />
       <ServicesSection pageImages={pageImages} />
-      <CtaSection />
+      <CtaSection email={company.email} phone={company.phone} />
     </>
   );
 }

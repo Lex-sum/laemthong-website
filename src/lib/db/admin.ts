@@ -1,6 +1,6 @@
 import { createSupabaseAdminClient } from "@/lib/supabase";
 import { getRole, mustChangePassword, type AdminRole } from "@/lib/admin-roles";
-import type { DbBrand, DbCategory, DbProduct, DbPageImage } from "@/data/types";
+import type { DbBrand, DbCategory, DbProduct, DbPageImage, DbCompanyInfo } from "@/data/types";
 
 // ─── Brands ──────────────────────────────────────────────────────────────────
 
@@ -285,6 +285,25 @@ export async function adminDeletePageImage(key: string): Promise<void> {
     .from("page_images")
     .delete()
     .eq("key", key);
+  if (error) throw error;
+}
+
+// ─── Company Info (singleton row id = 1) ────────────────────────────────────
+
+export async function adminGetCompanyInfo(): Promise<DbCompanyInfo | null> {
+  const supabase = createSupabaseAdminClient();
+  const { data, error } = await supabase.from("company_info").select("*").eq("id", 1).maybeSingle();
+  if (error) throw error;
+  return data as DbCompanyInfo | null;
+}
+
+export async function adminSaveCompanyInfo(
+  values: Omit<DbCompanyInfo, "id">
+): Promise<void> {
+  const supabase = createSupabaseAdminClient();
+  const { error } = await supabase
+    .from("company_info")
+    .upsert({ id: 1, ...values, updated_at: new Date().toISOString() });
   if (error) throw error;
 }
 

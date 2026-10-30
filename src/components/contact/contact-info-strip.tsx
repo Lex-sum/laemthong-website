@@ -3,6 +3,7 @@ import { Phone, Mail, MapPin, Clock } from "lucide-react";
 type Props = {
   phone: string;
   email: string;
+  lineId?: string;
   address: string;
   hours: string;
   labels: {
@@ -13,7 +14,7 @@ type Props = {
   };
 };
 
-export function ContactInfoStrip({ phone, email, address, hours, labels }: Props) {
+export function ContactInfoStrip({ phone, email, lineId, address, hours, labels }: Props) {
   return (
     <section className="bg-foreground text-background">
       <div className="mx-auto max-w-7xl px-6 py-10 md:py-12">
@@ -30,6 +31,9 @@ export function ContactInfoStrip({ phone, email, address, hours, labels }: Props
               >
                 {phone}
               </a>
+              {lineId && (
+                <p className="mt-1 text-sm text-background/70">LINE: {lineId}</p>
+              )}
             </div>
           </div>
 

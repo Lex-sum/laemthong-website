@@ -22,7 +22,7 @@ export {
   getCategorySlugsWithDates,
 } from "./categories";
 
-export { getCompanyInfo } from "./company";
+export { getCompanyInfo, getSiteCompany, toTelHref } from "./company";
 
 export { saveContactInquiry } from "./contact";
 

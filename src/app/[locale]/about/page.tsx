@@ -6,7 +6,7 @@ import { Building2 } from "lucide-react";
 import { SectionHeading } from "@/components/shared/section-heading";
 import { PlaceholderImage } from "@/components/shared/placeholder-image";
 import { AnimateOnScroll } from "@/components/shared/animate-on-scroll";
-import { COMPANY, STAGGER_DELAY } from "@/lib/constants";
+import { STAGGER_DELAY } from "@/lib/constants";
 import { PageHero } from "@/components/shared/page-hero";
 import { JsonLd } from "@/components/shared/json-ld";
 import {
@@ -17,7 +17,7 @@ import {
   buildOrganizationSchema,
   buildBreadcrumbSchema,
 } from "@/lib/seo";
-import { getPageImages, getCompanyInfo } from "@/lib/db";
+import { getPageImages, getSiteCompany } from "@/lib/db";
 import type { Locale } from "@/data/types";
 
 type Props = {
@@ -57,7 +57,7 @@ export default async function AboutPage({ params }: Props) {
   const [t, pageImages, company] = await Promise.all([
     getTranslations({ locale, namespace: "about" }),
     getPageImages(),
-    getCompanyInfo(),
+    getSiteCompany(),
   ]);
   const tNav = await getTranslations({ locale, namespace: "nav" });
 
@@ -80,7 +80,7 @@ export default async function AboutPage({ params }: Props) {
 
   return (
     <>
-      {company && <JsonLd data={buildOrganizationSchema(company, loc)} />}
+      <JsonLd data={buildOrganizationSchema(company, loc)} />
       <JsonLd
         data={buildBreadcrumbSchema(loc, [
           { name: tNav("home"), href: "/" },
@@ -137,10 +137,10 @@ export default async function AboutPage({ params }: Props) {
         <div className="mx-auto max-w-7xl px-6 py-10 md:py-14">
           <div className="grid grid-cols-2 gap-8 md:grid-cols-4">
             {[
-              { value: `${COMPANY.stats.years}+`, label: t("statYearsExperience") },
-              { value: `${COMPANY.stats.brands}+`, label: t("statGlobalBrands") },
-              { value: `${COMPANY.stats.products.toLocaleString()}+`, label: t("statProducts") },
-              { value: `${COMPANY.stats.clients.toLocaleString()}+`, label: t("statClients") },
+              { value: `${company.stats.years}+`, label: t("statYearsExperience") },
+              { value: `${company.stats.brands}+`, label: t("statGlobalBrands") },
+              { value: `${company.stats.products.toLocaleString()}+`, label: t("statProducts") },
+              { value: `${company.stats.clients.toLocaleString()}+`, label: t("statClients") },
             ].map((stat, i) => (
               <AnimateOnScroll key={stat.label} delay={i * STAGGER_DELAY}>
                 <div>

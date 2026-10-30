@@ -5,7 +5,7 @@ import { ContactInfoStrip } from "@/components/contact/contact-info-strip";
 import { GoogleMap } from "@/components/contact/google-map";
 import { JsonLd } from "@/components/shared/json-ld";
 import { PageHero } from "@/components/shared/page-hero";
-import { getCompanyInfo, getPageImage } from "@/lib/db";
+import { getSiteCompany, getPageImage } from "@/lib/db";
 import {
   getPageUrl,
   getAlternateLanguages,
@@ -51,22 +51,24 @@ export default async function ContactPage({ params, searchParams }: Props) {
   const { product } = await searchParams;
   setRequestLocale(locale);
   const t = await getTranslations({ locale, namespace: "contact" });
+  const loc = locale as Locale;
   const [company, heroImage] = await Promise.all([
-    getCompanyInfo(),
+    getSiteCompany(),
     getPageImage("hero-contact"),
   ]);
 
   return (
     <>
-      {company && <JsonLd data={buildLocalBusinessSchema(company, locale as Locale)} />}
+      <JsonLd data={buildLocalBusinessSchema(company, loc)} />
       <PageHero label={t("title")} title={t("title")} description={t("description")} backgroundImage={heroImage ?? undefined} />
 
-      {/* Company info dark strip */}
+      {/* Company info dark strip — all values come from Admin → Company Info */}
       <ContactInfoStrip
-        phone={company?.phone ?? "+66-2-538-4949"}
-        email={company?.email ?? "sales@laemthong.co.th"}
-        address={t("addressValue")}
-        hours={t("businessHoursValue")}
+        phone={company.phone}
+        email={company.email}
+        lineId={company.lineId}
+        address={company.address[loc] || t("addressValue")}
+        hours={company.businessHours[loc] || t("businessHoursValue")}
         labels={{
           phone: t("phoneLabel"),
           email: t("emailLabel"),
@@ -91,9 +93,9 @@ export default async function ContactPage({ params, searchParams }: Props) {
       <section className="border-t py-16 md:py-20">
         <div className="mx-auto max-w-7xl px-6">
           <GoogleMap
-            mapUrl={company?.mapUrl}
-            coordinates={company?.coordinates}
-            title={company?.name[locale as Locale]}
+            mapUrl={company.mapUrl || undefined}
+            coordinates={company.coordinates?.lat ? company.coordinates : undefined}
+            title={company.name[loc]}
           />
         </div>
       </section>

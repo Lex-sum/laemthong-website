@@ -53,6 +53,15 @@ export interface CompanyInfo {
   lineId?: string;
   mapUrl: string;
   coordinates: { lat: number; lng: number };
+  businessHours: LocalizedString;
+  stats: CompanyStats;
+}
+
+export interface CompanyStats {
+  years: number;
+  brands: number;
+  products: number;
+  clients: number;
 }
 
 // ========================================
@@ -106,6 +115,8 @@ export interface DbCompanyInfo {
   line_id: string | null;
   map_url: string;
   coordinates: { lat: number; lng: number };
+  business_hours?: LocalizedString;
+  stats?: Partial<CompanyStats>;
 }
 
 export interface DbPageImage {

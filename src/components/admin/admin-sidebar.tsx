@@ -22,7 +22,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
-import { LayoutDashboard, Package, Building2, MessageSquare, ImageIcon, ChevronRight, Warehouse, Users } from "lucide-react";
+import { LayoutDashboard, Package, Building2, MessageSquare, ImageIcon, ChevronRight, Warehouse, Users, Landmark } from "lucide-react";
 import { TABS } from "@/data/page-image-slots";
 
 const navItems = [
@@ -116,6 +116,14 @@ export function AdminSidebar({ isOwner = false }: { isOwner?: boolean }) {
                   </CollapsibleContent>
                 </SidebarMenuItem>
               </Collapsible>
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild isActive={pathname.startsWith("/admin/company")}>
+                  <Link href="/admin/company">
+                    <Landmark className="h-4 w-4" />
+                    <span>Company Info</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>

@@ -1,9 +1,9 @@
 import { getTranslations } from "next-intl/server";
 import { Link } from "@/i18n/navigation";
 import { Logo } from "@/components/shared/logo";
-import { Phone, Mail, MapPin, ShieldCheck, Award, Clock } from "lucide-react";
+import { Phone, Mail, MapPin, ShieldCheck, Award, Clock, MessageCircle } from "lucide-react";
 import { getCachedCategories } from "@/lib/db/cached";
-import { COMPANY } from "@/lib/constants";
+import { getSiteCompany, toTelHref } from "@/lib/db/company";
 import type { Locale } from "@/data/types";
 
 export async function SiteFooter({ locale, logoUrl }: { locale: string; logoUrl?: string | null }) {
@@ -12,7 +12,7 @@ export async function SiteFooter({ locale, logoUrl }: { locale: string; logoUrl?
   const tCommon = await getTranslations({ locale, namespace: "common" });
   const tContact = await getTranslations({ locale, namespace: "contact" });
 
-  const categories = await getCachedCategories();
+  const [categories, company] = await Promise.all([getCachedCategories(), getSiteCompany()]);
   const footerCategories = categories.slice(0, 6);
   const loc = locale as Locale;
 
@@ -83,25 +83,31 @@ export async function SiteFooter({ locale, logoUrl }: { locale: string; logoUrl?
                 <li className="flex items-start gap-2.5">
                   <Phone className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
                   <a
-                    href={COMPANY.phoneTel}
+                    href={toTelHref(company.phone)}
                     className="text-sm text-muted-foreground hover:text-foreground"
                   >
-                    {COMPANY.phone}
+                    {company.phone}
                   </a>
                 </li>
                 <li className="flex items-start gap-2.5">
                   <Mail className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
                   <a
-                    href={`mailto:${COMPANY.email}`}
+                    href={`mailto:${company.email}`}
                     className="text-sm text-muted-foreground hover:text-foreground"
                   >
-                    {COMPANY.email}
+                    {company.email}
                   </a>
                 </li>
+                {company.lineId && (
+                  <li className="flex items-start gap-2.5">
+                    <MessageCircle className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+                    <span className="text-sm text-muted-foreground">LINE: {company.lineId}</span>
+                  </li>
+                )}
                 <li className="flex items-start gap-2.5">
                   <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
                   <span className="text-sm text-muted-foreground">
-                    {tContact("addressValue")}
+                    {company.address[loc] || tContact("addressValue")}
                   </span>
                 </li>
               </ul>
