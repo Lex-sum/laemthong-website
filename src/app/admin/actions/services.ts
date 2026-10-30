@@ -7,6 +7,7 @@ import { logActivity } from "@/lib/activity";
 import {
   adminCreateService,
   adminDeleteService,
+  adminGetServiceBySlug,
   adminUpdateService,
   type ServiceWrite,
 } from "@/lib/db/admin";
@@ -14,7 +15,7 @@ import { SERVICES_TAG } from "@/lib/db/services";
 import { handleActionError } from "@/lib/db/errors";
 import { getNextSortOrder } from "@/lib/db/sort-order";
 import { revalidateEntity } from "@/lib/revalidation";
-import { deleteImageFolder, migrateImagesOnSlugChange } from "@/lib/storage";
+import { deleteImagesByUrl } from "@/lib/storage";
 import { serviceSchema, type ServiceInput } from "@/lib/validations/service";
 import type { ActionState } from "./types";
 
@@ -77,13 +78,8 @@ export async function createServiceAction(
   }
   const v = validated.data;
 
-  // Images uploaded before the slug was final live under a temporary folder
-  const tempSlug = formData.get("tempSlug") as string | null;
-  let imageUrl = v.imageUrl;
-  if (tempSlug && imageUrl) {
-    const migrated = await migrateImagesOnSlugChange("services", tempSlug, v.slug, imageUrl);
-    if (typeof migrated === "string") imageUrl = migrated;
-  }
+  // An image uploaded before saving keeps its URL (temporary folder) — no file moves
+  const imageUrl = v.imageUrl;
 
   try {
     await adminCreateService({
@@ -117,9 +113,9 @@ export async function updateServiceAction(
   }
   const v = validated.data;
 
-  let imageUrl = v.imageUrl;
-  const migrated = await migrateImagesOnSlugChange("services", originalSlug, v.slug, imageUrl);
-  if (typeof migrated === "string") imageUrl = migrated;
+  // The image URL stays valid when the slug changes — no file moves
+  const imageUrl = v.imageUrl;
+  const previous = await adminGetServiceBySlug(originalSlug);
 
   try {
     await adminUpdateService(originalSlug, {
@@ -128,6 +124,11 @@ export async function updateServiceAction(
     });
   } catch (error) {
     return handleActionError(error, "service", "update");
+  }
+
+  // Old image file goes only after the new one is saved
+  if (previous?.image_url && previous.image_url !== (imageUrl || null)) {
+    await deleteImagesByUrl([previous.image_url]);
   }
 
   refresh();
@@ -143,12 +144,13 @@ export async function updateServiceAction(
 export async function deleteServiceAction(slug: string): Promise<ActionState> {
   const user = await requireAdmin();
 
+  const existing = await adminGetServiceBySlug(slug);
   try {
     await adminDeleteService(slug);
-    deleteImageFolder("services", slug).catch(() => {});
   } catch (error) {
     return handleActionError(error, "service", "delete");
   }
+  await deleteImagesByUrl([existing?.image_url]);
 
   refresh();
   await logActivity(user, {

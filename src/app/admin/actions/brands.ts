@@ -8,8 +8,9 @@ import {
   adminCreateBrand,
   adminUpdateBrand,
   adminDeleteBrand,
+  adminGetBrandBySlug,
 } from "@/lib/db/admin";
-import { deleteImageFolder, migrateImagesOnSlugChange } from "@/lib/storage";
+import { deleteImagesByUrl } from "@/lib/storage";
 import { handleActionError } from "@/lib/db/errors";
 import { getNextSortOrder } from "@/lib/db/sort-order";
 import { revalidateEntity } from "@/lib/revalidation";
@@ -95,12 +96,9 @@ export async function updateBrandAction(
 
   const slug = validated.data.slug;
 
-  // Handle logo migration if slug changed
-  let logo = validated.data.logo || "";
-  const migrated = await migrateImagesOnSlugChange("brands", originalSlug, slug, logo);
-  if (typeof migrated === "string") {
-    logo = migrated;
-  }
+  // The logo URL stays valid when the slug changes — no file moves
+  const logo = validated.data.logo || "";
+  const previous = await adminGetBrandBySlug(originalSlug);
 
   // Build update object
   const updateData: Parameters<typeof adminUpdateBrand>[1] = {
@@ -125,6 +123,9 @@ export async function updateBrandAction(
     return handleActionError(error, "brand", "update");
   }
 
+  // Old logo file goes only after the new one is saved
+  if (previous?.logo && previous.logo !== logo) await deleteImagesByUrl([previous.logo]);
+
   revalidateEntity("/admin/brands");
   await logActivity(user, { action: "update", entity: "brand", entityId: slug, summary: `Updated brand "${validated.data.name}"` });
   redirect("/admin/brands");
@@ -133,12 +134,13 @@ export async function updateBrandAction(
 export async function deleteBrandAction(slug: string): Promise<BrandActionState> {
   const user = await requireAdmin();
 
+  const existing = await adminGetBrandBySlug(slug);
   try {
     await adminDeleteBrand(slug);
-    deleteImageFolder("brands", slug).catch(() => {});
   } catch (error) {
     return handleActionError(error, "brand", "delete");
   }
+  await deleteImagesByUrl([existing?.logo]);
 
   revalidateEntity("/admin/brands");
   await logActivity(user, { action: "delete", entity: "brand", entityId: slug, summary: `Deleted brand "${slug}"` });

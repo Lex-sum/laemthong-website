@@ -67,79 +67,50 @@ export async function deleteImageFolder(
   await supabase.storage.from(BUCKET).remove(paths);
 }
 
-/**
- * Move all images from one entity folder to another (e.g., temp slug to final slug).
- * Returns array of new public URLs in the same order as the original URLs.
- */
-export async function moveImageFolder(
-  folder: ImageFolder,
-  fromEntitySlug: string,
-  toEntitySlug: string
-): Promise<string[]> {
+/** True if the URL points at a file in our public `images` bucket. */
+export function isOwnImageUrl(url: string): boolean {
+  return extractPathFromUrl(url) !== null;
+}
+
+/** Is this public URL still used by any product, brand, service or page image? */
+async function isImageReferenced(url: string): Promise<boolean> {
   const supabase = createSupabaseAdminClient();
-  const fromPrefix = `${folder}/${fromEntitySlug}`;
-  const toPrefix = `${folder}/${toEntitySlug}`;
-
-  // List all files in the source folder
-  const { data: files, error: listError } = await supabase.storage
-    .from(BUCKET)
-    .list(fromPrefix);
-
-  if (listError || !files || files.length === 0) {
-    return [];
-  }
-
-  const newUrls: string[] = [];
-
-  // Move each file to the new folder
-  for (const file of files) {
-    const fromPath = `${fromPrefix}/${file.name}`;
-    const toPath = `${toPrefix}/${file.name}`;
-
-    // Copy file to new location
-    const { error: moveError } = await supabase.storage
-      .from(BUCKET)
-      .move(fromPath, toPath);
-
-    if (!moveError) {
-      const {
-        data: { publicUrl },
-      } = supabase.storage.from(BUCKET).getPublicUrl(toPath);
-      newUrls.push(publicUrl);
-    }
-  }
-
-  return newUrls;
+  const checks = await Promise.all([
+    // products.images is jsonb — .contains() would send a Postgres array literal, so pass JSON
+    supabase.from("products").select("slug", { count: "exact", head: true }).filter("images", "cs", JSON.stringify([url])),
+    supabase.from("brands").select("slug", { count: "exact", head: true }).eq("logo", url),
+    supabase.from("services").select("slug", { count: "exact", head: true }).eq("image_url", url),
+    supabase.from("page_images").select("key", { count: "exact", head: true }).eq("image_url", url),
+  ]);
+  // If a check fails we can't prove the file is unused — keep it.
+  return checks.some((c) => c.error || (c.count ?? 0) > 0);
 }
 
 /**
- * When an entity's slug changes, migrate its images to the new folder path.
- * Returns the updated image URL(s) or null if no migration was needed.
+ * Delete image files by their public URLs — but only files no record uses anymore.
+ * Call AFTER the database change, so the record being edited/deleted no longer
+ * references them. Image identity is the URL, never the folder name.
  */
-export async function migrateImagesOnSlugChange(
-  folder: ImageFolder,
-  oldSlug: string,
-  newSlug: string,
-  currentImages: string | string[]
-): Promise<string | string[] | null> {
-  if (oldSlug === newSlug) return null;
+export async function deleteImagesByUrl(
+  urls: (string | null | undefined)[]
+): Promise<{ deleted: number; kept: number }> {
+  const unique = [...new Set(urls.filter((u): u is string => !!u && isOwnImageUrl(u)))];
+  const toDelete: string[] = [];
+  let kept = 0;
 
-  const imageList = Array.isArray(currentImages)
-    ? currentImages
-    : [currentImages];
-  if (imageList.length === 0 || !imageList[0]) return null;
-
-  try {
-    const newUrls = await moveImageFolder(folder, oldSlug, newSlug);
-    if (newUrls.length > 0) {
-      return Array.isArray(currentImages) ? newUrls : newUrls[0];
-    }
-  } catch (error) {
-    console.error(`Failed to migrate ${folder} images on slug change:`, error);
-    // Continue with old URLs - images still accessible under old slug
+  for (const url of unique) {
+    if (await isImageReferenced(url)) kept++;
+    else toDelete.push(extractPathFromUrl(url)!);
   }
 
-  return null;
+  if (toDelete.length > 0) {
+    const { error } = await createSupabaseAdminClient().storage.from(BUCKET).remove(toDelete);
+    if (error) {
+      console.error("Failed to delete image files:", error);
+      return { deleted: 0, kept: kept + toDelete.length };
+    }
+  }
+  return { deleted: toDelete.length, kept };
 }
 
 function extractPathFromUrl(publicUrl: string): string | null {

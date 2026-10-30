@@ -8,9 +8,10 @@ import {
   adminCreateProduct,
   adminUpdateProduct,
   adminDeleteProduct,
+  adminGetProductBySlug,
 } from "@/lib/db/admin";
 import { createSupabaseAdminClient } from "@/lib/supabase";
-import { deleteImageFolder, moveImageFolder, migrateImagesOnSlugChange } from "@/lib/storage";
+import { deleteImagesByUrl } from "@/lib/storage";
 import { handleActionError } from "@/lib/db/errors";
 import { getNextSortOrder } from "@/lib/db/sort-order";
 import { revalidateEntity } from "@/lib/revalidation";
@@ -60,26 +61,8 @@ export async function createProductAction(
 
   const sortOrder = validated.data.sortOrder ?? await getNextSortOrder("products");
 
-  // Handle image migration from temporary slug to final slug
-  let images = parseJsonOrDefault<string[]>(validated.data.images, []);
-  if (images.length > 0 && images[0].includes('/products/temp-')) {
-    const tempSlugMatch = images[0].match(/\/products\/(temp-\d+)\//);
-    if (tempSlugMatch) {
-      const tempSlug = tempSlugMatch[1];
-      try {
-        const newUrls = await moveImageFolder("products", tempSlug, slug);
-        if (newUrls.length > 0) {
-          images = newUrls;
-        }
-      } catch {
-        return {
-          errors: {
-            images: ["Failed to finalize uploaded images. Please try again or re-upload."],
-          },
-        };
-      }
-    }
-  }
+  // Images uploaded before saving stay where they are — the URL is the image's identity
+  const images = parseJsonOrDefault<string[]>(validated.data.images, []);
 
   try {
     await adminCreateProduct({
@@ -149,18 +132,23 @@ export async function updateProductAction(
     return { errors: validated.error.flatten().fieldErrors };
   }
 
-  const slug = validated.data.slug || originalSlug;
-
-  // Handle image migration if slug changed
-  let images = parseJsonOrDefault<string[]>(validated.data.images, []);
-  const migrated = await migrateImagesOnSlugChange("products", originalSlug, slug, images);
-  if (Array.isArray(migrated)) {
-    images = migrated;
+  // The product slug is fixed after creation: it is the SAP item code, the page URL
+  // and the image folder name. Reject any attempt to change it.
+  const slug = originalSlug;
+  if (validated.data.slug && validated.data.slug !== originalSlug) {
+    return {
+      errors: { slug: ["The slug can't be changed after the product is created."] },
+    };
   }
+
+  const existing = await adminGetProductBySlug(originalSlug);
+  if (!existing) {
+    return { message: "Product not found. It may have been deleted." };
+  }
+  const images = parseJsonOrDefault<string[]>(validated.data.images, []);
 
   // Build update object
   const updateData: Parameters<typeof adminUpdateProduct>[1] = {
-    slug,
     category_slug: validated.data.categorySlug,
     brand_slug: validated.data.brandSlug,
     name: { th: validated.data.nameTh, en: validated.data.nameEn },
@@ -197,6 +185,9 @@ export async function updateProductAction(
     return handleActionError(error, "product", "update");
   }
 
+  // Delete files of images removed in the form — only now that the change is saved
+  await deleteImagesByUrl(existing.images.filter((url) => !images.includes(url)));
+
   revalidateEntity("/admin/products");
   await logActivity(user, { action: "update", entity: "product", entityId: slug, summary: `Updated product "${validated.data.nameEn}"` });
   redirect("/admin/products");
@@ -207,12 +198,14 @@ export async function deleteProductAction(
 ): Promise<ActionState> {
   const user = await requireAdmin();
 
+  const existing = await adminGetProductBySlug(slug);
   try {
     await adminDeleteProduct(slug);
-    deleteImageFolder("products", slug).catch(() => {});
   } catch (error) {
     return handleActionError(error, "product", "delete");
   }
+  // Remove exactly the files this product used (files another record uses are kept)
+  await deleteImagesByUrl(existing?.images ?? []);
 
   revalidateEntity("/admin/products");
   await logActivity(user, { action: "delete", entity: "product", entityId: slug, summary: `Deleted product "${slug}"` });
@@ -225,16 +218,18 @@ export async function bulkDeleteProductsAction(
   const user = await requireAdmin();
 
   const supabase = createSupabaseAdminClient();
-  const { error } = await supabase.from("products").delete().in("slug", slugs);
+  const { data: deletedRows, error } = await supabase
+    .from("products")
+    .delete()
+    .in("slug", slugs)
+    .select("images");
 
   if (error) {
     return { success: false, deleted: 0, message: error.message };
   }
 
-  // Parallel image cleanup (fire-and-forget)
-  Promise.allSettled(
-    slugs.map((slug) => deleteImageFolder("products", slug))
-  );
+  // Remove exactly the files the deleted products used
+  await deleteImagesByUrl((deletedRows ?? []).flatMap((row) => (row.images as string[]) ?? []));
 
   revalidateEntity("/admin/products");
   await logActivity(user, { action: "bulk_delete", entity: "product", summary: `Deleted ${slugs.length} products: ${slugs.slice(0, 20).join(", ")}${slugs.length > 20 ? ", …" : ""}` });

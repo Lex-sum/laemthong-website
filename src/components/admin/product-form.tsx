@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useId, useState, useMemo } from "react";
+import { useActionState, useEffect, useState, useMemo } from "react";
 import { Label } from "@/components/ui/label";
 import { FormErrorAlert } from "./form-error-alert";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -51,8 +51,8 @@ export function ProductForm({ product, brands, categories, defaults, sapInfo }: 
   const [images, setImages] = useState<string[]>(product?.images ?? []);
 
   // Temporary slug for image uploads during creation (before final slug is known)
-  const tempId = useId();
-  const tempSlug = `temp-${tempId.replace(/:/g, "")}`;
+  // Unique upload folder for a new record (useId() repeats across page loads)
+  const [tempSlug] = useState(() => `new-${crypto.randomUUID()}`);
 
   const { slug: currentSlug, setSlug: setCurrentSlug, isCustomSlug, setIsCustomSlug, handleNameChange } = useFormSlug({
     initialSlug: product?.slug ?? defaults?.slug ?? "",
@@ -155,7 +155,7 @@ export function ProductForm({ product, brands, categories, defaults, sapInfo }: 
       {isEditing && (
         <input type="hidden" name="originalSlug" value={product.slug} />
       )}
-      <input type="hidden" name="slug" value={currentSlug} />
+      <input type="hidden" name="slug" value={isEditing ? product.slug : currentSlug} />
       <input type="hidden" name="images" value={JSON.stringify(images)} />
       <input
         type="hidden"

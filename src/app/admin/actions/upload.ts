@@ -17,6 +17,9 @@ const ALLOWED_TYPES = [
   "image/avif",
   "image/svg+xml",
 ];
+const FOLDERS: ImageFolder[] = ["products", "brands", "categories", "pages", "services"];
+/** Folder names become storage paths — keep them to slug characters only. */
+const ENTITY_SLUG = /^[a-z0-9-]{1,120}$/;
 
 export async function uploadImageAction(
   formData: FormData
@@ -29,6 +32,10 @@ export async function uploadImageAction(
 
   if (!file || !folder || !entitySlug) {
     return { success: false, error: "Missing required fields." };
+  }
+
+  if (!FOLDERS.includes(folder) || !ENTITY_SLUG.test(entitySlug)) {
+    return { success: false, error: "Invalid upload location." };
   }
 
   if (!ALLOWED_TYPES.includes(file.type)) {
@@ -53,8 +60,14 @@ export async function uploadImageAction(
   }
 }
 
+/**
+ * Immediate delete — only for Page Content images, which save as soon as they change.
+ * Product, brand and service images are deleted by their save/delete actions instead,
+ * after the database no longer references them.
+ */
 export async function deleteImageAction(publicUrl: string): Promise<void> {
   await requireAdmin();
 
+  if (!publicUrl.includes("/storage/v1/object/public/images/pages/")) return;
   await deleteImage(publicUrl);
 }

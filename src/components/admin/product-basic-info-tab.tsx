@@ -5,6 +5,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Plus } from "lucide-react";
 import { SlugInput } from "./slug-input";
+import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
@@ -89,16 +90,28 @@ export function ProductBasicInfoTab({
         helperText="The display name of the product in both languages"
       />
 
-      <SlugInput
-        isCustomSlug={isCustomSlug}
-        onToggleCustom={onToggleCustomSlug}
-        slug={slug}
-        onSlugChange={onSlugChange}
-        isEditing={isEditing}
-        tooltipText='The URL-friendly version of the name. Used in web addresses (e.g., "hydraulic-pump" → /products/hydraulic-pump). Auto-generated from the English name unless customized.'
-        editWarning="Changing the slug will migrate product images to the new URL path"
-        error={errors?.slug?.[0]}
-      />
+      {isEditing && product ? (
+        // The slug is fixed after creation: it is the SAP item code, the page URL
+        // and the image folder name.
+        <div className="space-y-2">
+          <Label htmlFor="slug-locked">Slug</Label>
+          <Input id="slug-locked" value={product.slug} readOnly disabled className="bg-muted font-mono" />
+          <p className="text-xs text-muted-foreground">
+            The slug can&apos;t be changed after the product is created. To fix a typo, delete and
+            recreate the product.
+          </p>
+          {errors?.slug?.[0] && <p className="text-sm text-destructive">{errors.slug[0]}</p>}
+        </div>
+      ) : (
+        <SlugInput
+          isCustomSlug={isCustomSlug}
+          onToggleCustom={onToggleCustomSlug}
+          slug={slug}
+          onSlugChange={onSlugChange}
+          tooltipText='The URL-friendly version of the name, used in the page address (/products/your-slug). Use the SAP item code for products sold from SAP. It cannot be changed after the product is created.'
+          error={errors?.slug?.[0]}
+        />
+      )}
 
       {sapInfo && <SapStockPanel info={sapInfo} />}
 

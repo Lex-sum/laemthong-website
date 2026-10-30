@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useId, useState } from "react";
+import { useActionState, useEffect, useState } from "react";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { FormErrorAlert } from "./form-error-alert";
@@ -35,8 +35,8 @@ export function ServiceForm({ service }: { service?: DbService }) {
   );
   const e = state.errors;
 
-  const tempId = useId();
-  const tempSlug = `temp-${tempId.replace(/:/g, "")}`;
+  // Unique upload folder for a new record (useId() repeats across page loads)
+  const [tempSlug] = useState(() => `new-${crypto.randomUUID()}`);
 
   const { slug, setSlug, isCustomSlug, setIsCustomSlug, handleNameChange } = useFormSlug({
     initialSlug: service?.slug ?? "",
@@ -62,7 +62,6 @@ export function ServiceForm({ service }: { service?: DbService }) {
   return (
     <form action={formAction} className="max-w-4xl space-y-6">
       {isEditing && <input type="hidden" name="originalSlug" value={service.slug} />}
-      {!isEditing && <input type="hidden" name="tempSlug" value={tempSlug} />}
       <input type="hidden" name="slug" value={slug} />
       <input type="hidden" name="imageUrl" value={imageUrl} />
       <input type="hidden" name="isPrimary" value={String(isPrimary)} />

@@ -52,6 +52,12 @@ interface ImageUploadProps {
   onUploadStateChange?: (isUploading: boolean) => void;
   reorderable?: boolean;
   showPrimaryBadge?: boolean;
+  /**
+   * Delete the file from storage as soon as it is removed or replaced. Only for
+   * places that save immediately (Page Content). Forms leave this off: the server
+   * deletes removed files after Save, so an unsaved form never breaks an image.
+   */
+  deleteOnRemove?: boolean;
 }
 
 export function ImageUpload({
@@ -69,6 +75,7 @@ export function ImageUpload({
   onUploadStateChange,
   reorderable = false,
   showPrimaryBadge = false,
+  deleteOnRemove = false,
 }: ImageUploadProps) {
   const [isUploading, setIsUploading] = useState(false);
   const [isDragOver, setIsDragOver] = useState(false);
@@ -128,7 +135,7 @@ export function ImageUpload({
         if (multiple) {
           onChange([...urls, url]);
         } else {
-          if (urls[0]) {
+          if (urls[0] && deleteOnRemove) {
             deleteImageAction(urls[0]).catch(() => {});
           }
           onChange(url);
@@ -139,7 +146,7 @@ export function ImageUpload({
         setUploadingState(false);
       }
     },
-    [multiple, urls, onChange, uploadFile, setUploadingState]
+    [multiple, urls, onChange, uploadFile, setUploadingState, deleteOnRemove]
   );
 
   const processNextInQueue = useCallback(
@@ -205,14 +212,14 @@ export function ImageUpload({
 
   const handleRemove = useCallback(
     async (urlToRemove: string) => {
-      deleteImageAction(urlToRemove).catch(() => {});
+      if (deleteOnRemove) deleteImageAction(urlToRemove).catch(() => {});
       if (multiple) {
         onChange(urls.filter((u) => u !== urlToRemove));
       } else {
         onChange("");
       }
     },
-    [multiple, urls, onChange]
+    [multiple, urls, onChange, deleteOnRemove]
   );
 
   const handleDrop = useCallback(

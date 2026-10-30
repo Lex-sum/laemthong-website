@@ -67,6 +67,7 @@ export function PageImagesForm({ images, activeSection }: PageImagesFormProps) {
         <ImageUpload
           value={imageMap.get(slot.key) ?? ""}
           onChange={(url) => handleChange(slot.key, url)}
+          deleteOnRemove
           folder="pages"
           entitySlug={slot.key}
           aspectRatio={slot.aspectRatio}
