@@ -7,6 +7,7 @@ import { createSupabaseAdminClient } from "@/lib/supabase";
 import { deleteImagesByUrl } from "@/lib/storage";
 import { revalidateEntity } from "@/lib/revalidation";
 import { IMAGE_TYPES } from "@/lib/bulk-upload/image-files";
+import { MAX_PRODUCT_IMAGES } from "@/lib/constants";
 
 /**
  * Bulk product image import. The browser uploads files straight to Supabase Storage
@@ -16,7 +17,6 @@ import { IMAGE_TYPES } from "@/lib/bulk-upload/image-files";
 
 const BUCKET = "images";
 const SLUG = /^[a-z0-9-]{1,120}$/;
-const MAX_FILES_PER_PRODUCT = 30;
 
 export type ProductImageInfo = { name: string; imageCount: number };
 
@@ -63,8 +63,8 @@ export async function createProductImageUploadsAction(
   await requireAdmin();
 
   if (!SLUG.test(slug)) return { error: "Invalid slug" };
-  if (extensions.length === 0 || extensions.length > MAX_FILES_PER_PRODUCT) {
-    return { error: `Upload 1–${MAX_FILES_PER_PRODUCT} images per product at a time` };
+  if (extensions.length === 0 || extensions.length > MAX_PRODUCT_IMAGES) {
+    return { error: `Upload 1–${MAX_PRODUCT_IMAGES} images per product at a time` };
   }
   if (extensions.some((ext) => !IMAGE_TYPES[ext])) return { error: "Unsupported image type" };
   if (!(await getProduct(slug))) return { error: "Product not found — add the product data first" };
@@ -114,6 +114,12 @@ export async function attachProductImagesAction(
   const newUrls = paths.map((p) => storage.getPublicUrl(p).data.publicUrl);
   const previous = product.images ?? [];
   const images = mode === "append" ? [...previous, ...newUrls] : newUrls;
+  if (images.length > MAX_PRODUCT_IMAGES) {
+    return {
+      success: false,
+      error: `Would have ${images.length} images — the limit is ${MAX_PRODUCT_IMAGES} per product`,
+    };
+  }
 
   const { error } = await createSupabaseAdminClient()
     .from("products")

@@ -23,6 +23,7 @@ import { useUnsavedChanges } from "@/hooks/use-unsaved-changes";
 import { useUnsavedChangesContext } from "./unsaved-changes-provider";
 import type { DbProduct, DbBrand, DbCategory, LocalizedString } from "@/data/types";
 import type { SapProductInfo } from "@/lib/db/admin";
+import { MAX_PRODUCT_IMAGES } from "@/lib/constants";
 
 /** Editable starting values for a new product (e.g. from a SAP B1 item). */
 export interface ProductFormDefaults {
@@ -249,7 +250,7 @@ export function ProductForm({ product, brands, categories, defaults, sapInfo }: 
               folder="products"
               entitySlug={isEditing ? currentSlug : tempSlug}
               multiple
-              maxFiles={10}
+              maxFiles={MAX_PRODUCT_IMAGES}
               aspectRatio={4 / 3}
               aspectRatioLabel="4:3 landscape"
               recommendedPx="800 × 600 px"

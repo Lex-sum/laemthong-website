@@ -12,6 +12,7 @@ import {
 } from "@/lib/db/admin";
 import { createSupabaseAdminClient } from "@/lib/supabase";
 import { deleteImagesByUrl } from "@/lib/storage";
+import { MAX_PRODUCT_IMAGES } from "@/lib/constants";
 import { handleActionError } from "@/lib/db/errors";
 import { getNextSortOrder } from "@/lib/db/sort-order";
 import { revalidateEntity } from "@/lib/revalidation";
@@ -63,6 +64,9 @@ export async function createProductAction(
 
   // Images uploaded before saving stay where they are — the URL is the image's identity
   const images = parseJsonOrDefault<string[]>(validated.data.images, []);
+  if (images.length > MAX_PRODUCT_IMAGES) {
+    return { errors: { images: [`A product can have at most ${MAX_PRODUCT_IMAGES} images.`] } };
+  }
 
   try {
     await adminCreateProduct({
@@ -146,6 +150,11 @@ export async function updateProductAction(
     return { message: "Product not found. It may have been deleted." };
   }
   const images = parseJsonOrDefault<string[]>(validated.data.images, []);
+  // Products that already had more (e.g. from an older bulk import) can still save
+  // as long as the count doesn't grow
+  if (images.length > Math.max(MAX_PRODUCT_IMAGES, existing.images.length)) {
+    return { errors: { images: [`A product can have at most ${MAX_PRODUCT_IMAGES} images.`] } };
+  }
 
   // Build update object
   const updateData: Parameters<typeof adminUpdateProduct>[1] = {

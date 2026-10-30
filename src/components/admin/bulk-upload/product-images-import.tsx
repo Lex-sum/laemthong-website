@@ -29,6 +29,7 @@ import {
   discardUploadedImagesAction,
 } from "@/app/admin/actions/product-images";
 import { cn } from "@/lib/utils";
+import { MAX_PRODUCT_IMAGES } from "@/lib/constants";
 
 type Group = {
   slug: string;
@@ -51,15 +52,39 @@ const browserStorage = () =>
     auth: { persistSession: false },
   }).storage.from("images");
 
+/**
+ * Which files fit under the per-product limit. "append" fills the free slots after the
+ * current images; "replace" starts from zero. The rest are reported, never dropped silently.
+ */
+function planGroup(group: Group, mode: Mode) {
+  const capacity = mode === "append" ? Math.max(0, MAX_PRODUCT_IMAGES - group.currentCount) : MAX_PRODUCT_IMAGES;
+  return { upload: group.files.slice(0, capacity), over: group.files.slice(capacity) };
+}
+
+function overLimitNote(over: ImageCandidate[]) {
+  if (over.length === 0) return "";
+  const names = over.map((f) => f.source.split("/").pop()).join(", ");
+  return ` · ${over.length} not uploaded (over the ${MAX_PRODUCT_IMAGES}-image limit): ${names}`;
+}
+
 function extensionOf(name: string) {
   return name.split(".").pop()?.toLowerCase() ?? "jpg";
 }
 
 /** Uploads one product's images straight to storage, then attaches them. */
 async function importGroup(group: Group, mode: Mode): Promise<Result> {
+  const { upload, over } = planGroup(group, mode);
+  if (upload.length === 0) {
+    return {
+      slug: group.slug,
+      status: "skipped",
+      message: `Already has ${group.currentCount} images (max ${MAX_PRODUCT_IMAGES}) — use Replace or remove images first`,
+    };
+  }
+
   const prepared = await createProductImageUploadsAction(
     group.slug,
-    group.files.map((f) => extensionOf(f.file.name))
+    upload.map((f) => extensionOf(f.file.name))
   );
   if (!prepared.uploads) {
     return { slug: group.slug, status: "failed", message: prepared.error ?? "Could not prepare upload" };
@@ -67,16 +92,16 @@ async function importGroup(group: Group, mode: Mode): Promise<Result> {
 
   const storage = browserStorage();
   const uploaded: string[] = [];
-  for (let i = 0; i < group.files.length; i++) {
+  for (let i = 0; i < upload.length; i++) {
     const { path, token } = prepared.uploads[i];
-    const file = group.files[i].file;
+    const file = upload[i].file;
     const { error } = await storage.uploadToSignedUrl(path, token, file, {
       contentType: file.type,
       cacheControl: "31536000",
     });
     if (error) {
       await discardUploadedImagesAction(group.slug, uploaded);
-      return { slug: group.slug, status: "failed", message: `${group.files[i].source}: ${error.message}` };
+      return { slug: group.slug, status: "failed", message: `${upload[i].source}: ${error.message}` };
     }
     uploaded.push(path);
   }
@@ -90,9 +115,10 @@ async function importGroup(group: Group, mode: Mode): Promise<Result> {
     slug: group.slug,
     status: "success",
     message:
-      mode === "append"
+      (mode === "append"
         ? `Added ${attached.added} image(s)`
-        : `Replaced with ${attached.added} image(s)${attached.removed ? `, deleted ${attached.removed} old file(s)` : ""}`,
+        : `Replaced with ${attached.added} image(s)${attached.removed ? `, deleted ${attached.removed} old file(s)` : ""}`) +
+      overLimitNote(over),
   };
 }
 
@@ -130,7 +156,10 @@ export function ProductImagesImport() {
 
   const ready = groups.filter((g) => g.productName !== null);
   const missing = groups.filter((g) => g.productName === null);
-  const readyImageCount = ready.reduce((n, g) => n + g.files.length, 0);
+  // Memoised so thumbnail object URLs aren't recreated on every render
+  const plans = useMemo(() => new Map(groups.map((g) => [g.slug, planGroup(g, mode)])), [groups, mode]);
+  const readyImageCount = ready.reduce((n, g) => n + (plans.get(g.slug)?.upload.length ?? 0), 0);
+  const overLimitCount = ready.reduce((n, g) => n + (plans.get(g.slug)?.over.length ?? 0), 0);
 
   async function handleFiles(fileList: FileList | File[] | null) {
     const files = Array.from(fileList ?? []);
@@ -146,7 +175,7 @@ export function ProductImagesImport() {
         slug,
         productName: info[slug]?.name ?? null,
         currentCount: info[slug]?.imageCount ?? 0,
-        files: list.slice(0, 30),
+        files: list,
       }));
       // Products found first, then missing ones
       next.sort((a, b) => Number(a.productName === null) - Number(b.productName === null) || a.slug.localeCompare(b.slug));
@@ -246,7 +275,11 @@ export function ProductImagesImport() {
             <ul className="ml-2 list-inside list-disc space-y-1">
               <li>Images must be inside a folder named after the product slug; loose files are skipped.</li>
               <li>The product must already exist — import Product Data first.</li>
-              <li>JPG, PNG, WebP or AVIF, up to 5 MB each, up to 30 images per product per upload.</li>
+              <li>JPG, PNG, WebP or AVIF, up to 5 MB each.</li>
+              <li>
+                Up to {MAX_PRODUCT_IMAGES} images per product in total. When adding to existing images, only
+                the free slots are filled (in file order); the rest are listed and not uploaded.
+              </li>
               <li>Files that can&apos;t be used are listed with the reason before anything is uploaded.</li>
             </ul>
           </div>
@@ -265,7 +298,10 @@ export function ProductImagesImport() {
             <div className="rounded-lg border p-4">
               <p className="text-sm text-muted-foreground">Ready to import</p>
               <p className="text-2xl font-bold text-green-600">{ready.length}</p>
-              <p className="text-xs text-muted-foreground">{readyImageCount} images</p>
+              <p className="text-xs text-muted-foreground">
+                {readyImageCount} images
+                {overLimitCount > 0 && ` · ${overLimitCount} over the ${MAX_PRODUCT_IMAGES}-image limit`}
+              </p>
             </div>
             <div className="rounded-lg border p-4">
               <p className="text-sm text-muted-foreground">Product not found</p>
@@ -325,14 +361,19 @@ export function ProductImagesImport() {
                 ) : (
                   groups.map((g) => {
                     const found = g.productName !== null;
-                    const after = !found ? "—" : mode === "append" ? g.currentCount + g.files.length : g.files.length;
+                    const plan = plans.get(g.slug)!;
+                    const after = !found ? "—" : (mode === "append" ? g.currentCount : 0) + plan.upload.length;
                     return (
                       <tr key={g.slug} className="border-t">
                         <td className="px-4 py-3">
-                          {found ? (
-                            <Badge variant="outline" className="border-green-600 text-green-700">Ready</Badge>
-                          ) : (
+                          {!found ? (
                             <Badge variant="outline" className="border-destructive text-destructive">Not found</Badge>
+                          ) : plan.upload.length === 0 ? (
+                            <Badge variant="outline" className="border-yellow-600 text-yellow-700">Full</Badge>
+                          ) : plan.over.length > 0 ? (
+                            <Badge variant="outline" className="border-yellow-600 text-yellow-700">Partly</Badge>
+                          ) : (
+                            <Badge variant="outline" className="border-green-600 text-green-700">Ready</Badge>
                           )}
                         </td>
                         <td className="px-4 py-3 font-mono">{g.slug}</td>
@@ -341,9 +382,17 @@ export function ProductImagesImport() {
                         </td>
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-2">
-                            <Thumbs files={g.files} />
-                            <span className="text-xs text-muted-foreground">{g.files.length}</span>
+                            <Thumbs files={found ? plan.upload : g.files} />
+                            <span className="text-xs text-muted-foreground">
+                              {found ? plan.upload.length : g.files.length}
+                            </span>
                           </div>
+                          {found && plan.over.length > 0 && (
+                            <p className="mt-1 text-xs text-yellow-700">
+                              {plan.over.length} over the {MAX_PRODUCT_IMAGES}-image limit, not uploaded:{" "}
+                              {plan.over.map((f) => f.source.split("/").pop()).join(", ")}
+                            </p>
+                          )}
                         </td>
                         <td className="px-4 py-3 text-right tabular-nums">{found ? g.currentCount : "—"}</td>
                         <td className="px-4 py-3 text-right tabular-nums">{after}</td>
@@ -376,8 +425,9 @@ export function ProductImagesImport() {
             <Button variant="outline" onClick={reset}>
               Back
             </Button>
-            <Button onClick={startImport} disabled={ready.length === 0}>
-              Upload {readyImageCount} images to {ready.length} products
+            <Button onClick={startImport} disabled={readyImageCount === 0}>
+              Upload {readyImageCount} images to{" "}
+              {ready.filter((g) => (plans.get(g.slug)?.upload.length ?? 0) > 0).length} products
             </Button>
           </div>
         </div>

@@ -12,5 +12,8 @@ export const COMPANY = {
   },
 } as const;
 
+/** Most images one product can have (product form, bulk image import, server checks). */
+export const MAX_PRODUCT_IMAGES = 10;
+
 export const STAGGER_DELAY = 100;
 export const MAX_STAGGER_DELAY = 400;
