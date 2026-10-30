@@ -288,6 +288,37 @@ export async function adminDeletePageImage(key: string): Promise<void> {
   if (error) throw error;
 }
 
+// ─── Site Content (text overrides) ──────────────────────────────────────────
+
+export async function adminGetSiteContent(
+  keys: string[]
+): Promise<Record<string, { th?: string; en?: string }>> {
+  if (keys.length === 0) return {};
+  const supabase = createSupabaseAdminClient();
+  const { data, error } = await supabase.from("site_content").select("key, value").in("key", keys);
+  if (error) throw error;
+  return Object.fromEntries((data ?? []).map((r) => [r.key, r.value]));
+}
+
+export async function adminSaveSiteContent(
+  upserts: { key: string; value: { th?: string; en?: string } }[],
+  deletes: string[],
+  userId: string
+): Promise<void> {
+  const supabase = createSupabaseAdminClient();
+  if (upserts.length > 0) {
+    const now = new Date().toISOString();
+    const { error } = await supabase
+      .from("site_content")
+      .upsert(upserts.map((u) => ({ ...u, updated_at: now, updated_by: userId })));
+    if (error) throw error;
+  }
+  if (deletes.length > 0) {
+    const { error } = await supabase.from("site_content").delete().in("key", deletes);
+    if (error) throw error;
+  }
+}
+
 // ─── Company Info (singleton row id = 1) ────────────────────────────────────
 
 export async function adminGetCompanyInfo(): Promise<DbCompanyInfo | null> {

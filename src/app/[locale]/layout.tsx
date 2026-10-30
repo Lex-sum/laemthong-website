@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import { IBM_Plex_Sans_Thai } from "next/font/google";
 import { notFound } from "next/navigation";
 import { hasLocale } from "next-intl";
-import { setRequestLocale } from "next-intl/server";
+import { getMessages, setRequestLocale } from "next-intl/server";
 import { NextIntlClientProvider } from "next-intl";
 import { routing } from "@/i18n/routing";
 import { SiteHeader } from "@/components/layout/site-header";
@@ -76,8 +76,9 @@ export default async function LocaleLayout({ children, params }: Props) {
 
   setRequestLocale(locale);
 
+  // getMessages() returns the request config messages, including admin-edited text
   const [messages, logoUrl] = await Promise.all([
-    import(`../../../messages/${locale}.json`).then((m) => m.default),
+    getMessages({ locale }),
     getPageImage("site-logo"),
   ]);
 

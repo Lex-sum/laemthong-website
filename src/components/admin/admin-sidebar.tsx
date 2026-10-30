@@ -39,7 +39,7 @@ export function AdminSidebar({ isOwner = false }: { isOwner?: boolean }) {
   const pathname = usePathname();
   const visibleNavItems = isOwner ? [...navItems, ...ownerNavItems] : navItems;
   const searchParams = useSearchParams();
-  const isPageImages = pathname.startsWith("/admin/page-images");
+  const isPageContent = pathname.startsWith("/admin/content");
   const activeSection = searchParams.get("section") || TABS[0].value;
 
   return (
@@ -88,9 +88,9 @@ export function AdminSidebar({ isOwner = false }: { isOwner?: boolean }) {
               <Collapsible defaultOpen className="group/collapsible">
                 <SidebarMenuItem>
                   <CollapsibleTrigger asChild>
-                    <SidebarMenuButton isActive={isPageImages}>
+                    <SidebarMenuButton isActive={isPageContent}>
                       <ImageIcon className="h-4 w-4" />
-                      <span>Page Images</span>
+                      <span>Page Content</span>
                       <ChevronRight className="ml-auto h-4 w-4 transition-transform group-data-[state=open]/collapsible:rotate-90" />
                     </SidebarMenuButton>
                   </CollapsibleTrigger>
@@ -102,9 +102,9 @@ export function AdminSidebar({ isOwner = false }: { isOwner?: boolean }) {
                           <SidebarMenuSubItem key={tab.value}>
                             <SidebarMenuSubButton
                               asChild
-                              isActive={isPageImages && activeSection === tab.value}
+                              isActive={isPageContent && activeSection === tab.value}
                             >
-                              <Link href={`/admin/page-images?section=${tab.value}`}>
+                              <Link href={`/admin/content?section=${tab.value}`}>
                                 <Icon className="h-3.5 w-3.5" />
                                 <span>{tab.title}</span>
                               </Link>

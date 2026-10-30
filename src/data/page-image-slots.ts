@@ -210,7 +210,7 @@ const CONTACT_SLOTS: ImageSlot[] = [
 export const TABS: TabSection[] = [
   {
     value: "branding",
-    title: "Branding",
+    title: "Site-wide",
     description: "Company logo and favicon used across the entire site.",
     icon: Palette,
     slots: BRANDING_SLOTS,
