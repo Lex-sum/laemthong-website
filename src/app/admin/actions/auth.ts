@@ -2,7 +2,8 @@
 
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { createSupabaseServerClient } from "@/lib/supabase";
+import { createSupabaseServerClient, createSupabaseAdminClient } from "@/lib/supabase";
+import { mustChangePassword } from "@/lib/admin-roles";
 import {
   loginSchema,
   setupPasswordSchema,
@@ -69,7 +70,23 @@ export async function setupPasswordAction(
   });
 
   if (error) {
-    return { message: "Failed to set password. Please try again." };
+    return {
+      message:
+        error.code === "same_password"
+          ? "Choose a password different from your temporary one."
+          : "Failed to set password. Please try again.",
+    };
+  }
+
+  // Clear the "temporary password" flag set by an owner (app_metadata is service-role only)
+  if (mustChangePassword(user)) {
+    const { error: flagError } = await createSupabaseAdminClient().auth.admin.updateUserById(
+      user.id,
+      { app_metadata: { ...user.app_metadata, must_change_password: false } }
+    );
+    if (flagError) {
+      return { message: "Password saved, but your account could not be unlocked. Please try again." };
+    }
   }
 
   redirect("/admin");

@@ -22,7 +22,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
-import { LayoutDashboard, Package, Building2, MessageSquare, ImageIcon, ChevronRight, Warehouse } from "lucide-react";
+import { LayoutDashboard, Package, Building2, MessageSquare, ImageIcon, ChevronRight, Warehouse, Users } from "lucide-react";
 import { TABS } from "@/data/page-image-slots";
 
 const navItems = [
@@ -33,8 +33,11 @@ const navItems = [
   { title: "Inquiries", href: "/admin/inquiries", icon: MessageSquare },
 ];
 
-export function AdminSidebar() {
+const ownerNavItems = [{ title: "Users", href: "/admin/users", icon: Users }];
+
+export function AdminSidebar({ isOwner = false }: { isOwner?: boolean }) {
   const pathname = usePathname();
+  const visibleNavItems = isOwner ? [...navItems, ...ownerNavItems] : navItems;
   const searchParams = useSearchParams();
   const isPageImages = pathname.startsWith("/admin/page-images");
   const activeSection = searchParams.get("section") || TABS[0].value;
@@ -58,7 +61,7 @@ export function AdminSidebar() {
           <SidebarGroupLabel>Management</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {navItems.map((item) => (
+              {visibleNavItems.map((item) => (
                 <SidebarMenuItem key={item.href}>
                   <SidebarMenuButton
                     asChild

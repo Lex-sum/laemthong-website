@@ -62,6 +62,10 @@ export function LoginForm() {
           "Sign in"
         )}
       </Button>
+
+      <p className="text-center text-xs text-muted-foreground">
+        Forgot your password? Ask an owner to reset it from the Users page.
+      </p>
     </form>
   );
 }

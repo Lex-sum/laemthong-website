@@ -3,7 +3,7 @@ import { SetupPasswordForm } from "@/components/admin/setup-password-form";
 import { getPageImage } from "@/lib/db";
 
 export const metadata = {
-  title: "Set Up Password",
+  title: "Set a New Password",
 };
 
 export default async function SetupPasswordPage() {
@@ -40,10 +40,10 @@ export default async function SetupPasswordPage() {
             </div>
           )}
           <h1 className="mt-4 text-2xl font-bold text-foreground">
-            Set Up Your Account
+            Set a New Password
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Choose a password to activate your admin account.
+            Choose your own password to continue to the admin panel.
           </p>
           <div className="mx-auto mt-3 h-0.5 w-8 bg-primary" />
         </div>

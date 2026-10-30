@@ -1,6 +1,7 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase";
+import { getRole, mustChangePassword } from "@/lib/admin-roles";
 
 /** Returns the signed-in Supabase user, or null when there is no valid session. */
 export async function getAdminUser() {
@@ -20,5 +21,13 @@ export async function getAdminUser() {
 export async function requireAdmin() {
   const user = await getAdminUser();
   if (!user) redirect("/admin/login");
+  if (mustChangePassword(user)) redirect("/admin/setup-password");
+  return user;
+}
+
+/** Guard for member management — owners only. */
+export async function requireOwner() {
+  const user = await requireAdmin();
+  if (getRole(user) !== "owner") redirect("/admin");
   return user;
 }

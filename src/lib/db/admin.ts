@@ -1,4 +1,5 @@
 import { createSupabaseAdminClient } from "@/lib/supabase";
+import { getRole, mustChangePassword, type AdminRole } from "@/lib/admin-roles";
 import type { DbBrand, DbCategory, DbProduct, DbPageImage } from "@/data/types";
 
 // ─── Brands ──────────────────────────────────────────────────────────────────
@@ -472,4 +473,32 @@ export async function adminGetSapInfoForSlug(slug: string): Promise<SapProductIn
     .order("item_code", { ascending: true });
 
   return { match, sameName: error ? [] : (data as SapStockRow[]) };
+}
+
+// ─── Admin Users (Supabase Auth: auth.users) ────────────────────────────────
+
+export interface AdminUserRow {
+  id: string;
+  email: string;
+  role: AdminRole;
+  mustChangePassword: boolean;
+  lastSignInAt: string | null;
+  createdAt: string;
+}
+
+export async function adminListUsers(): Promise<AdminUserRow[]> {
+  const supabase = createSupabaseAdminClient();
+  const { data, error } = await supabase.auth.admin.listUsers({ perPage: 200 });
+  if (error) throw error;
+
+  return data.users
+    .map((u) => ({
+      id: u.id,
+      email: u.email ?? "",
+      role: getRole(u),
+      mustChangePassword: mustChangePassword(u),
+      lastSignInAt: u.last_sign_in_at ?? null,
+      createdAt: u.created_at,
+    }))
+    .sort((a, b) => a.email.localeCompare(b.email));
 }

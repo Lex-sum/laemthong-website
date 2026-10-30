@@ -2,6 +2,7 @@ import { type NextRequest, NextResponse } from "next/server";
 import createIntlMiddleware from "next-intl/middleware";
 import { createServerClient } from "@supabase/ssr";
 import { routing } from "./i18n/routing";
+import { mustChangePassword } from "./lib/admin-roles";
 
 const intlMiddleware = createIntlMiddleware(routing);
 
@@ -43,6 +44,13 @@ export async function proxy(request: NextRequest) {
     if (!user && !isLoginPage && !isSetupPage) {
       const loginUrl = new URL("/admin/login", request.url);
       return NextResponse.redirect(loginUrl);
+    }
+
+    // Temporary password from an owner — must set a new one before anything else.
+    // Only page loads (GET) are redirected; server actions are guarded by requireAdmin().
+    if (user && mustChangePassword(user) && !isSetupPage && request.method === "GET") {
+      const setupUrl = new URL("/admin/setup-password", request.url);
+      return NextResponse.redirect(setupUrl);
     }
 
     if (user && isLoginPage) {

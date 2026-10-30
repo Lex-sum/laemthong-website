@@ -8,15 +8,17 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import type { AdminRole } from "@/lib/admin-roles";
 import { KeyRound, LogOut, User, ExternalLink } from "lucide-react";
 import { logoutAction } from "@/app/admin/actions/auth";
 import { ChangePasswordDialog } from "@/components/admin/change-password-dialog";
 import { ThemeToggle } from "@/components/admin/theme-toggle";
 
-export function AdminHeader({ email }: { email?: string }) {
+export function AdminHeader({ email, role }: { email?: string; role?: AdminRole }) {
   const [passwordDialogOpen, setPasswordDialogOpen] = useState(false);
 
   return (
@@ -43,6 +45,14 @@ export function AdminHeader({ email }: { email?: string }) {
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
+          {role && (
+            <>
+              <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">
+                Signed in as {role === "owner" ? "Owner" : "Admin"}
+              </DropdownMenuLabel>
+              <DropdownMenuSeparator />
+            </>
+          )}
           <DropdownMenuItem onSelect={() => setPasswordDialogOpen(true)}>
             <KeyRound className="mr-2 h-4 w-4" />
             Change Password
