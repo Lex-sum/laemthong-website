@@ -5,7 +5,7 @@ import { Link } from "@/i18n/navigation";
 import { getProductBySlug, getRelatedProducts, getCategoryBySlug, getBrandBySlug } from "@/lib/db";
 import { ProductCard } from "@/components/products/product-card";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { RequestQuoteButton } from "@/components/contact/quote-dialog";
 import { BreadcrumbBar } from "@/components/shared/breadcrumb-bar";
 import {
   Table,
@@ -177,12 +177,14 @@ export default async function ProductDetailPage({ params }: Props) {
               </div>
 
               <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-                <Button asChild size="lg" className="gap-2">
-                  <Link href={`/contact?product=${product.slug}`}>
-                    {tCommon("requestQuote")}
-                    <ArrowRight className="h-4 w-4" />
-                  </Link>
-                </Button>
+                <RequestQuoteButton
+                  size="lg"
+                  className="gap-2"
+                  product={{ slug: product.slug, name: product.name[locale as Locale] }}
+                >
+                  {tCommon("requestQuote")}
+                  <ArrowRight className="h-4 w-4" />
+                </RequestQuoteButton>
               </div>
             </div>
           </div>

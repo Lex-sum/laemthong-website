@@ -1,10 +1,13 @@
+import { cn } from "@/lib/utils";
+
 type Props = {
   mapUrl?: string;
   coordinates?: { lat: number; lng: number };
   title?: string;
+  className?: string;
 };
 
-export function GoogleMap({ mapUrl, coordinates, title }: Props) {
+export function GoogleMap({ mapUrl, coordinates, title, className }: Props) {
   const embedUrl =
     mapUrl ||
     (coordinates
@@ -14,11 +17,11 @@ export function GoogleMap({ mapUrl, coordinates, title }: Props) {
   if (!embedUrl) return null;
 
   return (
-    <div className="overflow-hidden rounded-lg border bg-muted">
+    <div className={cn("h-64 overflow-hidden rounded-lg border bg-muted", className)}>
       <iframe
         src={embedUrl}
         title={title ?? "Location"}
-        className="h-64 w-full border-0"
+        className="h-full w-full border-0"
         loading="lazy"
         allowFullScreen
         referrerPolicy="no-referrer-when-downgrade"

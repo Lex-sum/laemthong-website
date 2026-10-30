@@ -8,6 +8,7 @@ import { NextIntlClientProvider } from "next-intl";
 import { routing } from "@/i18n/routing";
 import { SiteHeader } from "@/components/layout/site-header";
 import { SiteFooter } from "@/components/layout/site-footer";
+import { QuoteDialogProvider } from "@/components/contact/quote-dialog";
 import { HeaderThemeProvider } from "@/components/layout/header-theme-context";
 import { Toaster } from "@/components/ui/sonner";
 import { getPageImage } from "@/lib/db";
@@ -87,19 +88,21 @@ export default async function LocaleLayout({ children, params }: Props) {
       <head />
       <body className={`${font.variable} font-sans antialiased`}>
         <NextIntlClientProvider locale={locale} messages={messages}>
-          <HeaderThemeProvider>
-            <div className="flex min-h-screen flex-col">
-              <a
-                href="#main"
-                className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[60] focus:rounded-md focus:bg-background focus:px-4 focus:py-2 focus:text-sm focus:font-medium focus:text-foreground focus:shadow-lg focus:ring-2 focus:ring-primary"
-              >
-                Skip to content
-              </a>
-              <SiteHeader logoUrl={logoUrl} />
-              <main id="main" className="flex-1 pt-20">{children}</main>
-              <SiteFooter locale={locale} logoUrl={logoUrl} />
-            </div>
-          </HeaderThemeProvider>
+          <QuoteDialogProvider locale={locale}>
+            <HeaderThemeProvider>
+              <div className="flex min-h-screen flex-col">
+                <a
+                  href="#main"
+                  className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[60] focus:rounded-md focus:bg-background focus:px-4 focus:py-2 focus:text-sm focus:font-medium focus:text-foreground focus:shadow-lg focus:ring-2 focus:ring-primary"
+                >
+                  Skip to content
+                </a>
+                <SiteHeader logoUrl={logoUrl} />
+                <main id="main" className="flex-1 pt-20">{children}</main>
+                <SiteFooter locale={locale} logoUrl={logoUrl} />
+              </div>
+            </HeaderThemeProvider>
+          </QuoteDialogProvider>
           <Toaster />
         </NextIntlClientProvider>
       </body>

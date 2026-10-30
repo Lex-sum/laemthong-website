@@ -13,7 +13,9 @@
     "email": "อีเมล",
     "address": "ที่อยู่",
     "yearsExperience": "60+ ปีแห่งประสบการณ์",
-    "getInTouch": "ติดต่อเรา"
+    "getInTouch": "ติดต่อเรา",
+    "close": "ปิด",
+    "cancel": "ยกเลิก"
   },
   "nav": {
     "home": "หน้าแรก",

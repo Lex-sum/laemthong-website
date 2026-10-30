@@ -239,9 +239,9 @@ export const CONTENT_SECTIONS: Record<string, ContentGroup[]> = {
       fields: [f("contact.title", "Title"), f("contact.description", "Subtitle", true)],
     },
     {
-      title: "Contact form",
+      title: "Quote popup (Request a Quote)",
       fields: [
-        f("contact.formTitle", "Form heading"),
+        f("contact.formTitle", "Quote popup heading"),
         f("contact.successTitle", "Success heading"),
         f("contact.successMessage", "Success message", true),
       ],

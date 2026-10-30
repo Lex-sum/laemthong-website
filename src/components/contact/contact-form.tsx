@@ -14,7 +14,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { submitContactForm, type ContactFormState } from "@/app/[locale]/contact/actions";
-import { CheckCircle2, Loader2 } from "lucide-react";
+import { CheckCircle2, Loader2, Package } from "lucide-react";
 import { useEffect } from "react";
 import { toast } from "sonner";
 
@@ -27,13 +27,19 @@ const categories = [
   { value: "safety-equipment", label: { th: "อุปกรณ์ความปลอดภัย", en: "Safety Equipment" } },
 ];
 
+/** Product the visitor asked about (from the product page Request a Quote button). */
+export type QuoteProduct = { slug: string; name: string };
+
 type Props = {
   locale: string;
-  defaultProduct?: string;
+  product?: QuoteProduct;
+  /** When set (popup), shows Cancel / Close buttons. */
+  onClose?: () => void;
 };
 
-export function ContactForm({ locale, defaultProduct }: Props) {
+export function ContactForm({ locale, product, onClose }: Props) {
   const t = useTranslations("contact");
+  const tCommon = useTranslations("common");
   const [state, formAction, isPending] = useActionState<ContactFormState, FormData>(
     submitContactForm,
     {}
@@ -55,6 +61,11 @@ export function ContactForm({ locale, defaultProduct }: Props) {
           {t("successTitle")}
         </h3>
         <p className="mt-2 text-muted-foreground">{t("successMessage")}</p>
+        {onClose && (
+          <Button className="mt-6" variant="outline" onClick={onClose}>
+            {tCommon("close")}
+          </Button>
+        )}
       </div>
     );
   }
@@ -126,21 +137,33 @@ export function ContactForm({ locale, defaultProduct }: Props) {
         <input type="text" id="website" name="website" tabIndex={-1} autoComplete="off" />
       </div>
 
-      <div className="space-y-2">
-        <Label htmlFor="productInterest">{t("productInterest")}</Label>
-        <Select name="productInterest" defaultValue={defaultProduct}>
-          <SelectTrigger>
-            <SelectValue placeholder={t("productInterestPlaceholder")} />
-          </SelectTrigger>
-          <SelectContent>
-            {categories.map((cat) => (
-              <SelectItem key={cat.value} value={cat.value}>
-                {cat.label[locale as "th" | "en"]}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
+      {product ? (
+        // Quote for a specific product: send its name and code so the team knows what was asked about
+        <div className="space-y-2">
+          <Label>{t("productInterest")}</Label>
+          <input type="hidden" name="productInterest" value={`${product.name} (${product.slug})`} />
+          <div className="flex items-center gap-2 rounded-md border bg-muted/40 px-3 py-2 text-sm">
+            <Package className="h-4 w-4 shrink-0 text-muted-foreground" />
+            <span className="font-medium">{product.name}</span>
+          </div>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          <Label htmlFor="productInterest">{t("productInterest")}</Label>
+          <Select name="productInterest">
+            <SelectTrigger id="productInterest">
+              <SelectValue placeholder={t("productInterestPlaceholder")} />
+            </SelectTrigger>
+            <SelectContent>
+              {categories.map((cat) => (
+                <SelectItem key={cat.value} value={cat.value}>
+                  {cat.label[locale as "th" | "en"]}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
 
       <div className="space-y-2">
         <Label htmlFor="message">{t("message")} *</Label>
@@ -157,16 +180,23 @@ export function ContactForm({ locale, defaultProduct }: Props) {
         )}
       </div>
 
-      <Button type="submit" size="lg" className="w-full" disabled={isPending}>
-        {isPending ? (
-          <>
-            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            {t("submitting")}
-          </>
-        ) : (
-          t("submit")
+      <div className="flex flex-col-reverse gap-3 sm:flex-row">
+        {onClose && (
+          <Button type="button" variant="outline" size="lg" className="sm:flex-1" onClick={onClose} disabled={isPending}>
+            {tCommon("cancel")}
+          </Button>
         )}
-      </Button>
+        <Button type="submit" size="lg" className={onClose ? "sm:flex-[2]" : "w-full"} disabled={isPending}>
+          {isPending ? (
+            <>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              {t("submitting")}
+            </>
+          ) : (
+            t("submit")
+          )}
+        </Button>
+      </div>
     </form>
   );
 }

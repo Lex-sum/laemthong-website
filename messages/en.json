@@ -13,7 +13,9 @@
     "email": "Email",
     "address": "Address",
     "yearsExperience": "60+ Years of Experience",
-    "getInTouch": "Get in touch"
+    "getInTouch": "Get in touch",
+    "close": "Close",
+    "cancel": "Cancel"
   },
   "nav": {
     "home": "Home",

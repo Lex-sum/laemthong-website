@@ -9,6 +9,7 @@ import { useScrolled } from "@/hooks/use-scrolled";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Menu, ArrowRight } from "lucide-react";
+import { RequestQuoteButton } from "@/components/contact/quote-dialog";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 
@@ -75,17 +76,14 @@ export function SiteHeader({ logoUrl }: { logoUrl?: string | null }) {
         {/* Right side */}
         <div className="flex items-center gap-4">
           <LocaleSwitcher variant={isDarkHero ? "dark" : "default"} />
-          <Button
-            asChild
+          <RequestQuoteButton
             className="hidden gap-2 sm:inline-flex"
             size="sm"
             variant={isDarkHero ? "accent" : "default"}
           >
-            <Link href="/contact">
-              {tCommon("requestQuote")}
-              <ArrowRight className="h-3.5 w-3.5" />
-            </Link>
-          </Button>
+            {tCommon("requestQuote")}
+            <ArrowRight className="h-3.5 w-3.5" />
+          </RequestQuoteButton>
 
           {/* Mobile menu */}
           <Sheet open={open} onOpenChange={setOpen}>
@@ -127,12 +125,10 @@ export function SiteHeader({ logoUrl }: { logoUrl?: string | null }) {
                   );
                 })}
                 <div className="mt-6 border-t pt-6 px-4">
-                  <Button asChild className="w-full gap-2">
-                    <Link href="/contact" onClick={() => setOpen(false)}>
-                      {tCommon("requestQuote")}
-                      <ArrowRight className="h-3.5 w-3.5" />
-                    </Link>
-                  </Button>
+                  <RequestQuoteButton className="w-full gap-2" onOpen={() => setOpen(false)}>
+                    {tCommon("requestQuote")}
+                    <ArrowRight className="h-3.5 w-3.5" />
+                  </RequestQuoteButton>
                 </div>
               </nav>
             </SheetContent>
