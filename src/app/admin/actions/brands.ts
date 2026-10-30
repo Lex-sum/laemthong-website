@@ -1,6 +1,7 @@
 "use server";
 
 import { requireAdmin } from "@/lib/auth";
+import { logActivity } from "@/lib/activity";
 import { redirect } from "next/navigation";
 import { brandSchema } from "@/lib/validations/brand";
 import {
@@ -19,7 +20,7 @@ export async function createBrandAction(
   _prevState: BrandActionState,
   formData: FormData
 ): Promise<BrandActionState> {
-  await requireAdmin();
+  const user = await requireAdmin();
 
   const validated = brandSchema.safeParse({
     slug: formData.get("slug"),
@@ -60,6 +61,7 @@ export async function createBrandAction(
   }
 
   revalidateEntity("/admin/brands");
+  await logActivity(user, { action: "create", entity: "brand", entityId: validated.data.slug, summary: `Created brand "${validated.data.name}"` });
 
   if (skipRedirect) {
     return { success: true, brand: newBrand };
@@ -72,7 +74,7 @@ export async function updateBrandAction(
   _prevState: BrandActionState,
   formData: FormData
 ): Promise<BrandActionState> {
-  await requireAdmin();
+  const user = await requireAdmin();
 
   const originalSlug = formData.get("originalSlug") as string;
 
@@ -124,11 +126,12 @@ export async function updateBrandAction(
   }
 
   revalidateEntity("/admin/brands");
+  await logActivity(user, { action: "update", entity: "brand", entityId: slug, summary: `Updated brand "${validated.data.name}"` });
   redirect("/admin/brands");
 }
 
 export async function deleteBrandAction(slug: string): Promise<BrandActionState> {
-  await requireAdmin();
+  const user = await requireAdmin();
 
   try {
     await adminDeleteBrand(slug);
@@ -138,5 +141,6 @@ export async function deleteBrandAction(slug: string): Promise<BrandActionState>
   }
 
   revalidateEntity("/admin/brands");
+  await logActivity(user, { action: "delete", entity: "brand", entityId: slug, summary: `Deleted brand "${slug}"` });
   return { success: true };
 }

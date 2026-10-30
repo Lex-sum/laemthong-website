@@ -1,6 +1,7 @@
 "use server";
 
 import { requireAdmin } from "@/lib/auth";
+import { logActivity } from "@/lib/activity";
 import { redirect } from "next/navigation";
 import { categorySchema } from "@/lib/validations/category";
 import {
@@ -19,7 +20,7 @@ export async function createCategoryAction(
   _prevState: CategoryActionState,
   formData: FormData
 ): Promise<CategoryActionState> {
-  await requireAdmin();
+  const user = await requireAdmin();
 
   const validated = categorySchema.safeParse({
     slug: formData.get("slug"),
@@ -50,6 +51,7 @@ export async function createCategoryAction(
   }
 
   revalidateEntity("/admin/products");
+  await logActivity(user, { action: "create", entity: "category", entityId: validated.data.slug, summary: `Created category "${validated.data.nameEn}"` });
 
   if (skipRedirect) {
     return { success: true, category: newCategory };
@@ -62,7 +64,7 @@ export async function updateCategoryAction(
   _prevState: CategoryActionState,
   formData: FormData
 ): Promise<CategoryActionState> {
-  await requireAdmin();
+  const user = await requireAdmin();
 
   const originalSlug = formData.get("originalSlug") as string;
   const skipRedirect = formData.get("_skipRedirect") === "true";
@@ -97,6 +99,7 @@ export async function updateCategoryAction(
   }
 
   revalidateEntity("/admin/products");
+  await logActivity(user, { action: "update", entity: "category", entityId: slug, summary: `Updated category "${validated.data.nameEn}"` });
 
   if (skipRedirect) {
     return { success: true };
@@ -108,7 +111,7 @@ export async function updateCategoryAction(
 export async function deleteCategoryAction(
   slug: string
 ): Promise<CategoryActionState> {
-  await requireAdmin();
+  const user = await requireAdmin();
 
   try {
     await adminDeleteCategory(slug);
@@ -118,5 +121,6 @@ export async function deleteCategoryAction(
   }
 
   revalidateEntity("/admin/products");
+  await logActivity(user, { action: "delete", entity: "category", entityId: slug, summary: `Deleted category "${slug}"` });
   return { success: true };
 }

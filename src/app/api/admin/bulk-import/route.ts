@@ -1,5 +1,7 @@
 import { revalidatePath } from "next/cache";
 import { getAdminUser } from "@/lib/auth";
+import { mustChangePassword } from "@/lib/admin-roles";
+import { logActivity } from "@/lib/activity";
 import { parseProductCSV } from "@/lib/bulk-upload/csv-parser";
 import { extractImagesFromZip } from "@/lib/bulk-upload/zip-handler";
 import { validateProductRows, validateImageOnlyRows } from "@/lib/bulk-upload/validator";
@@ -17,6 +19,9 @@ export async function POST(request: Request) {
   const user = await getAdminUser();
   if (!user) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  if (mustChangePassword(user)) {
+    return Response.json({ error: "Set a new password first" }, { status: 403 });
   }
 
   // Parse FormData
@@ -67,6 +72,11 @@ export async function POST(request: Request) {
 
           revalidatePath("/admin/products");
           revalidatePath("/", "layout");
+          await logActivity(user, {
+            action: "bulk_import",
+            entity: "product",
+            summary: `Imported images for ${imageOnlyRows.length} products`,
+          });
           controller.close();
         } catch (error) {
           const msg =
@@ -118,6 +128,11 @@ export async function POST(request: Request) {
         // Revalidate after all imports complete
         revalidatePath("/admin/products");
         revalidatePath("/", "layout");
+        await logActivity(user, {
+          action: "bulk_import",
+          entity: "product",
+          summary: `Imported ${validated.length} rows from CSV${zipFile ? " + ZIP" : ""}`,
+        });
 
         controller.close();
       } catch (error) {

@@ -1,6 +1,7 @@
 "use server";
 
 import { requireAdmin } from "@/lib/auth";
+import { logActivity } from "@/lib/activity";
 import { revalidatePath } from "next/cache";
 import {
   adminUpsertPageImage,
@@ -12,7 +13,7 @@ export async function upsertPageImageAction(
   key: string,
   imageUrl: string
 ): Promise<{ success: boolean; message?: string }> {
-  await requireAdmin();
+  const user = await requireAdmin();
 
   try {
     await adminUpsertPageImage(key, imageUrl);
@@ -22,6 +23,7 @@ export async function upsertPageImageAction(
   }
 
   revalidatePath("/", "layout");
+  await logActivity(user, { action: "update", entity: "page_image", entityId: key, summary: `Updated image "${key}"` });
   if (key === "site-favicon") {
     revalidatePath("/api/favicon");
   }
@@ -31,7 +33,7 @@ export async function upsertPageImageAction(
 export async function deletePageImageAction(
   key: string
 ): Promise<{ success: boolean; message?: string }> {
-  await requireAdmin();
+  const user = await requireAdmin();
 
   try {
     await adminDeletePageImage(key);
@@ -42,6 +44,7 @@ export async function deletePageImageAction(
   }
 
   revalidatePath("/", "layout");
+  await logActivity(user, { action: "delete", entity: "page_image", entityId: key, summary: `Removed image "${key}"` });
   if (key === "site-favicon") {
     revalidatePath("/api/favicon");
   }

@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { requireOwner } from "@/lib/auth";
+import { logActivity } from "@/lib/activity";
 import { createSupabaseAdminClient } from "@/lib/supabase";
 import { adminListUsers } from "@/lib/db/admin";
 import { generateTempPassword } from "@/lib/temp-password";
@@ -24,7 +25,7 @@ export async function createUserAction(
   email: string,
   role: AdminRole
 ): Promise<UserActionResult> {
-  await requireOwner();
+  const me = await requireOwner();
 
   const parsed = createUserSchema.safeParse({ email, role });
   if (!parsed.success) {
@@ -47,11 +48,17 @@ export async function createUserAction(
   }
 
   revalidatePath("/admin/users");
+  await logActivity(me, {
+    action: "create",
+    entity: "user",
+    entityId: parsed.data.email,
+    summary: `Added ${parsed.data.email} as ${parsed.data.role}`,
+  });
   return { success: true, tempPassword };
 }
 
 export async function resetUserPasswordAction(userId: string): Promise<UserActionResult> {
-  await requireOwner();
+  const me = await requireOwner();
   if (!userIdSchema.safeParse(userId).success) return { message: "Invalid user." };
 
   const supabase = createSupabaseAdminClient();
@@ -66,6 +73,12 @@ export async function resetUserPasswordAction(userId: string): Promise<UserActio
   if (error) return { message: "Failed to reset password. Please try again." };
 
   revalidatePath("/admin/users");
+  await logActivity(me, {
+    action: "reset_password",
+    entity: "user",
+    entityId: data.user.email,
+    summary: `Reset password for ${data.user.email}`,
+  });
   return { success: true, tempPassword };
 }
 
@@ -95,6 +108,12 @@ export async function setUserRoleAction(
   if (error) return { message: "Failed to change role. Please try again." };
 
   revalidatePath("/admin/users");
+  await logActivity(me, {
+    action: "change_role",
+    entity: "user",
+    entityId: data.user.email,
+    summary: `Changed ${data.user.email} to ${role}`,
+  });
   return { success: true };
 }
 
@@ -115,5 +134,11 @@ export async function deleteUserAction(userId: string): Promise<UserActionResult
   if (error) return { message: "Failed to delete user. Please try again." };
 
   revalidatePath("/admin/users");
+  await logActivity(me, {
+    action: "delete",
+    entity: "user",
+    entityId: data.user.email,
+    summary: `Deleted ${data.user.email}`,
+  });
   return { success: true };
 }
