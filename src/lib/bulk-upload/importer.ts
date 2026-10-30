@@ -7,14 +7,7 @@ import {
   adminCreateProduct,
   adminUpdateProduct,
 } from "@/lib/db/admin";
-import { uploadImage } from "@/lib/storage";
-import type {
-  ValidationResult,
-  ImportOptions,
-  ImportEvent,
-  ImageMap,
-  ImageOnlyValidationResult,
-} from "./types";
+import type { ValidationResult, ImportOptions, ImportEvent } from "./types";
 
 function slugToTitle(slug: string): string {
   return slug
@@ -23,6 +16,10 @@ function slugToTitle(slug: string): string {
     .join(" ");
 }
 
+/**
+ * Imports product DATA from CSV. Never touches images: new products start with
+ * no images and updates leave existing images as they are (images have their own import).
+ */
 export async function* importProducts(
   validatedRows: ValidationResult[],
   options: ImportOptions
@@ -88,22 +85,7 @@ export async function* importProducts(
         });
       }
 
-      // Upload images if available
-      const imageUrls: string[] = [];
-
-      const images = result.images;
-      if (images?.images && images.images.length > 0) {
-        for (const img of images.images) {
-          const url = await uploadImage(
-            "products",
-            result.row.data.slug,
-            img
-          );
-          imageUrls.push(url);
-        }
-      }
-
-      // Create/update product
+      // Create/update product data (no images field)
       const productData = {
         slug: result.row.data.slug,
         category_slug: result.row.data.categorySlug,
@@ -120,7 +102,6 @@ export async function* importProducts(
           th: result.row.data.descriptionTh,
           en: result.row.data.descriptionEn,
         },
-        images: imageUrls,
         specifications: result.row.data.parsedSpecifications || [],
         features: result.row.data.parsedFeatures || [],
         documents: [],
@@ -151,7 +132,7 @@ export async function* importProducts(
           };
         }
       } else {
-        await adminCreateProduct(productData);
+        await adminCreateProduct({ ...productData, images: [] });
         stats.created++;
         yield {
           type: "success",
@@ -176,101 +157,4 @@ export async function* importProducts(
   }
 
   yield { type: "complete", stats: { ...stats, total: validatedRows.length, failures } };
-}
-
-export async function* importImagesOnly(
-  imageMap: ImageMap,
-  rows: ImageOnlyValidationResult[]
-): AsyncGenerator<ImportEvent> {
-  const stats = { created: 0, updated: 0, skipped: 0, failed: 0 };
-  const failures: { slug: string; error: string }[] = [];
-
-  for (let i = 0; i < rows.length; i++) {
-    const row = rows[i];
-
-    try {
-      const images = imageMap[row.slug];
-      if (!images) {
-        stats.skipped++;
-        yield { type: "skipped", slug: row.slug, reason: "No images found" };
-        continue;
-      }
-
-      // Upload images
-      const imageUrls: string[] = [];
-
-      for (const img of images.images) {
-        const url = await uploadImage("products", row.slug, img);
-        imageUrls.push(url);
-      }
-
-      if (row.productExists) {
-        // Update only image fields on existing product
-        if (imageUrls.length > 0) {
-          await adminUpdateProduct(row.slug, { images: imageUrls });
-        }
-        stats.updated++;
-        yield { type: "success", slug: row.slug, action: "image-updated" };
-      } else {
-        // Create dummy product — auto-create "uncategorized" and "unbranded" if needed
-        const categorySlug = "uncategorized";
-        const brandSlug = "unbranded";
-
-        if (!(await adminGetCategoryBySlug(categorySlug))) {
-          await adminCreateCategory({
-            slug: categorySlug,
-            name: { th: "ยังไม่จัดหมวดหมู่", en: "Uncategorized" },
-            description: { th: "", en: "" },
-            sort_order: 999,
-          });
-        }
-
-        if (!(await adminGetBrandBySlug(brandSlug))) {
-          await adminCreateBrand({
-            slug: brandSlug,
-            name: "Unbranded",
-            description: { th: "", en: "" },
-            logo: "",
-            website: null,
-            country: "",
-            sort_order: 999,
-          });
-        }
-
-        await adminCreateProduct({
-          slug: row.slug,
-          category_slug: categorySlug,
-          brand_slug: brandSlug,
-          name: { th: slugToTitle(row.slug), en: slugToTitle(row.slug) },
-          short_description: { th: "", en: "" },
-          description: { th: "", en: "" },
-          images: imageUrls,
-          specifications: [],
-          features: [],
-          documents: [],
-          featured: false,
-          sort_order: 0,
-        });
-        stats.created++;
-        yield { type: "success", slug: row.slug, action: "created" };
-      }
-
-      yield {
-        type: "progress",
-        current: i + 1,
-        total: rows.length,
-        slug: row.slug,
-      };
-    } catch (error) {
-      stats.failed++;
-      const errorMsg = error instanceof Error ? error.message : "Unknown error";
-      failures.push({ slug: row.slug, error: errorMsg });
-      yield { type: "error", slug: row.slug, error: errorMsg };
-    }
-  }
-
-  yield {
-    type: "complete",
-    stats: { ...stats, total: rows.length, failures },
-  };
 }

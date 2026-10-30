@@ -47,13 +47,6 @@ export type ValidationResult = {
   status: ValidationStatus;
   errors: string[];
   warnings: string[];
-  images?: {
-    images: File[];
-  };
-};
-
-export type ImageInfo = {
-  imageCount: number;
 };
 
 export type ClientValidationResult = {
@@ -61,30 +54,13 @@ export type ClientValidationResult = {
   status: ValidationStatus;
   errors: string[];
   warnings: string[];
-  imageInfo?: ImageInfo;
 };
-
-export type ImageMap = Record<
-  string,
-  {
-    images: File[];
-  }
->;
 
 export type ValidationStats = {
   total: number;
   valid: number;
   warnings: number;
   errors: number;
-};
-
-export type UploadMode = "csv-only" | "zip-only" | "csv-and-zip";
-
-export type ImageOnlyValidationResult = {
-  slug: string;
-  productName: string | null;
-  productExists: boolean;
-  images: ImageInfo;
 };
 
 export type ImportOptions = {
@@ -97,7 +73,7 @@ export type ImportEvent =
   | {
       type: "success";
       slug: string;
-      action: "created" | "updated" | "image-updated";
+      action: "created" | "updated";
     }
   | { type: "skipped"; slug: string; reason: string }
   | { type: "error"; slug: string; error: string }

@@ -7,23 +7,17 @@ import {
   XCircle,
   ChevronLeft,
   ChevronRight,
-  ImageIcon,
-  Plus,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import type {
   ClientValidationResult,
-  ImageOnlyValidationResult,
-  UploadMode,
   ValidationStats,
 } from "@/lib/bulk-upload/types";
 
 type PreviewTableProps = {
-  uploadMode: UploadMode;
   rows: ClientValidationResult[];
-  imageOnlyRows?: ImageOnlyValidationResult[];
   stats: ValidationStats;
   onImport: (options: { overwriteExisting: boolean; skipErrors: boolean }) => void;
   onBack: () => void;
@@ -32,9 +26,7 @@ type PreviewTableProps = {
 const ROWS_PER_PAGE = 50;
 
 export function PreviewTable({
-  uploadMode,
   rows,
-  imageOnlyRows,
   stats,
   onImport,
   onBack,
@@ -46,19 +38,6 @@ export function PreviewTable({
   const [skipErrors, setSkipErrors] = useState(true);
   const [page, setPage] = useState(1);
 
-  // ZIP-only mode
-  if (uploadMode === "zip-only" && imageOnlyRows) {
-    return (
-      <ImageOnlyPreview
-        rows={imageOnlyRows}
-        stats={stats}
-        onImport={() => onImport({ overwriteExisting: true, skipErrors: true })}
-        onBack={onBack}
-      />
-    );
-  }
-
-  // CSV mode (csv-only or csv-and-zip)
   const filteredRows = rows.filter((row) => {
     if (filter === "all") return true;
     if (filter === "valid") return row.status === "valid";
@@ -169,9 +148,6 @@ export function PreviewTable({
                   Brand
                 </th>
                 <th className="px-4 py-3 text-left text-sm font-medium">
-                  Images
-                </th>
-                <th className="px-4 py-3 text-left text-sm font-medium">
                   Data
                 </th>
                 <th className="px-4 py-3 text-left text-sm font-medium">
@@ -205,11 +181,6 @@ export function PreviewTable({
                   </td>
                   <td className="px-4 py-3 text-sm font-mono text-muted-foreground max-w-[120px] truncate">
                     {row.row.data.brandSlug}
-                  </td>
-                  <td className="px-4 py-3 text-sm">
-                    {row.imageInfo && row.imageInfo.imageCount > 0
-                      ? `${row.imageInfo.imageCount} img`
-                      : "\u2014"}
                   </td>
                   <td className="px-4 py-3 text-sm text-muted-foreground">
                     {(() => {
@@ -330,204 +301,6 @@ export function PreviewTable({
           disabled={!canImport}
         >
           Import {importCount} Products
-        </Button>
-      </div>
-    </div>
-  );
-}
-
-// --- Image-only preview for ZIP-only mode ---
-
-function ImageOnlyPreview({
-  rows,
-  stats,
-  onImport,
-  onBack,
-}: {
-  rows: ImageOnlyValidationResult[];
-  stats: ValidationStats;
-  onImport: () => void;
-  onBack: () => void;
-}) {
-  const [page, setPage] = useState(1);
-  const [filter, setFilter] = useState<"all" | "existing" | "new">("all");
-
-  const filteredRows = rows.filter((row) => {
-    if (filter === "all") return true;
-    if (filter === "existing") return row.productExists;
-    if (filter === "new") return !row.productExists;
-    return true;
-  });
-
-  const totalPages = Math.ceil(filteredRows.length / ROWS_PER_PAGE);
-  const startIndex = (page - 1) * ROWS_PER_PAGE;
-  const endIndex = startIndex + ROWS_PER_PAGE;
-  const paginatedRows = filteredRows.slice(startIndex, endIndex);
-
-  const existingCount = rows.filter((r) => r.productExists).length;
-  const newCount = rows.filter((r) => !r.productExists).length;
-
-  return (
-    <div className="space-y-6">
-      {/* Stats */}
-      <div className="grid grid-cols-3 gap-4">
-        <div className="rounded-lg border p-4">
-          <p className="text-sm text-muted-foreground">Total Slugs</p>
-          <p className="text-2xl font-bold">{stats.total}</p>
-        </div>
-        <div className="rounded-lg border p-4">
-          <p className="text-sm text-muted-foreground">Existing Products</p>
-          <p className="text-2xl font-bold text-green-600">{existingCount}</p>
-          <p className="text-xs text-muted-foreground">Images will be updated</p>
-        </div>
-        <div className="rounded-lg border p-4">
-          <p className="text-sm text-muted-foreground">New Products</p>
-          <p className="text-2xl font-bold text-yellow-600">{newCount}</p>
-          <p className="text-xs text-muted-foreground">
-            Will be created with placeholder data
-          </p>
-        </div>
-      </div>
-
-      {/* Filter Tabs */}
-      <div className="flex gap-2">
-        <Button
-          variant={filter === "all" ? "accent" : "outline"}
-          size="sm"
-          onClick={() => {
-            setFilter("all");
-            setPage(1);
-          }}
-        >
-          All ({stats.total})
-        </Button>
-        <Button
-          variant={filter === "existing" ? "accent" : "outline"}
-          size="sm"
-          onClick={() => {
-            setFilter("existing");
-            setPage(1);
-          }}
-        >
-          Existing ({existingCount})
-        </Button>
-        <Button
-          variant={filter === "new" ? "accent" : "outline"}
-          size="sm"
-          onClick={() => {
-            setFilter("new");
-            setPage(1);
-          }}
-        >
-          New ({newCount})
-        </Button>
-      </div>
-
-      {/* Table */}
-      <div className="rounded-lg border">
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead className="bg-muted">
-              <tr>
-                <th className="px-4 py-3 text-left text-sm font-medium">
-                  Status
-                </th>
-                <th className="px-4 py-3 text-left text-sm font-medium">
-                  Slug
-                </th>
-                <th className="px-4 py-3 text-left text-sm font-medium">
-                  Product Name
-                </th>
-                <th className="px-4 py-3 text-left text-sm font-medium">
-                  Images
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {paginatedRows.map((row) => (
-                <tr key={row.slug} className="border-t">
-                  <td className="px-4 py-3">
-                    {row.productExists ? (
-                      <span className="inline-flex items-center gap-1 text-xs font-medium text-green-700 bg-green-100 dark:bg-green-900/30 dark:text-green-400 px-2 py-1 rounded-full">
-                        <ImageIcon className="h-3 w-3" />
-                        Update
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-center gap-1 text-xs font-medium text-yellow-700 bg-yellow-100 dark:bg-yellow-900/30 dark:text-yellow-400 px-2 py-1 rounded-full">
-                        <Plus className="h-3 w-3" />
-                        New
-                      </span>
-                    )}
-                  </td>
-                  <td className="px-4 py-3 text-sm font-mono max-w-[150px] truncate">{row.slug}</td>
-                  <td className="px-4 py-3 text-sm max-w-[180px] truncate">
-                    {row.productName || (
-                      <span className="text-muted-foreground italic">
-                        Will be created
-                      </span>
-                    )}
-                  </td>
-                  <td className="px-4 py-3 text-sm">
-                    {row.images.imageCount > 0
-                      ? `${row.images.imageCount} images`
-                      : "\u2014"}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* Pagination */}
-      {totalPages > 1 && (
-        <div className="flex items-center justify-between">
-          <p className="text-sm text-muted-foreground">
-            Showing {startIndex + 1} to{" "}
-            {Math.min(endIndex, filteredRows.length)} of {filteredRows.length}{" "}
-            results
-          </p>
-          <div className="flex gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setPage(page - 1)}
-              disabled={page === 1}
-            >
-              <ChevronLeft className="h-4 w-4" />
-              Previous
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setPage(page + 1)}
-              disabled={page === totalPages}
-            >
-              Next
-              <ChevronRight className="h-4 w-4" />
-            </Button>
-          </div>
-        </div>
-      )}
-
-      {/* Info */}
-      {newCount > 0 && (
-        <div className="rounded-lg bg-yellow-50 dark:bg-yellow-950 border border-yellow-200 dark:border-yellow-800 p-4">
-          <p className="text-sm text-yellow-900 dark:text-yellow-100">
-            <strong>{newCount} new product(s)</strong> will be created with
-            placeholder data (name from slug, uncategorized, unbranded). You can
-            edit their details later or upload a CSV to update them.
-          </p>
-        </div>
-      )}
-
-      {/* Actions */}
-      <div className="flex items-center justify-between gap-4">
-        <Button variant="outline" onClick={onBack}>
-          Back
-        </Button>
-        <Button variant="accent" onClick={onImport}>
-          Upload Images for {stats.total} Products
         </Button>
       </div>
     </div>

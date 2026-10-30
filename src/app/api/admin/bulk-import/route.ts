@@ -3,9 +3,8 @@ import { getAdminUser } from "@/lib/auth";
 import { mustChangePassword } from "@/lib/admin-roles";
 import { logActivity } from "@/lib/activity";
 import { parseProductCSV } from "@/lib/bulk-upload/csv-parser";
-import { extractImagesFromZip } from "@/lib/bulk-upload/zip-handler";
-import { validateProductRows, validateImageOnlyRows } from "@/lib/bulk-upload/validator";
-import { importProducts, importImagesOnly } from "@/lib/bulk-upload/importer";
+import { validateProductRows } from "@/lib/bulk-upload/validator";
+import { importProducts } from "@/lib/bulk-upload/importer";
 import type { ImportOptions } from "@/lib/bulk-upload/types";
 
 const streamHeaders = {
@@ -14,6 +13,7 @@ const streamHeaders = {
   "Transfer-Encoding": "chunked",
 };
 
+/** Product DATA import from CSV (streams progress). Images are imported separately. */
 export async function POST(request: Request) {
   // Auth check — proxy does not cover /api routes
   const user = await getAdminUser();
@@ -24,17 +24,12 @@ export async function POST(request: Request) {
     return Response.json({ error: "Set a new password first" }, { status: 403 });
   }
 
-  // Parse FormData
   const formData = await request.formData();
   const csvFile = formData.get("csv") as File | null;
-  const zipFile = formData.get("zip") as File | null;
   const optionsJson = formData.get("options") as string | null;
 
-  if (!csvFile && !zipFile) {
-    return Response.json(
-      { error: "At least one file (CSV or ZIP) is required" },
-      { status: 400 }
-    );
+  if (!csvFile) {
+    return Response.json({ error: "A CSV file is required" }, { status: 400 });
   }
 
   let options: ImportOptions;
@@ -46,78 +41,21 @@ export async function POST(request: Request) {
     return Response.json({ error: "Invalid options" }, { status: 400 });
   }
 
-  const encoder = new TextEncoder();
-
-  // ZIP-only path: import images for existing/new products
-  if (!csvFile && zipFile) {
-    const imageMap = await extractImagesFromZip(zipFile);
-
-    if (Object.keys(imageMap).length === 0) {
-      return Response.json(
-        { error: "No product image folders found in ZIP" },
-        { status: 400 }
-      );
-    }
-
-    const imageOnlyRows = await validateImageOnlyRows(imageMap);
-
-    const stream = new ReadableStream({
-      async start(controller) {
-        try {
-          for await (const event of importImagesOnly(imageMap, imageOnlyRows)) {
-            controller.enqueue(
-              encoder.encode(JSON.stringify(event) + "\n")
-            );
-          }
-
-          revalidatePath("/admin/products");
-          revalidatePath("/", "layout");
-          await logActivity(user, {
-            action: "bulk_import",
-            entity: "product",
-            summary: `Imported images for ${imageOnlyRows.length} products`,
-          });
-          controller.close();
-        } catch (error) {
-          const msg =
-            error instanceof Error ? error.message : "Import failed";
-          controller.enqueue(
-            encoder.encode(
-              JSON.stringify({ type: "error", slug: "", error: msg }) + "\n"
-            )
-          );
-          controller.close();
-        }
-      },
-    });
-
-    return new Response(stream, { headers: streamHeaders });
-  }
-
-  // CSV path (csv-only or csv-and-zip)
   let csvText: string;
   try {
-    csvText = await csvFile!.text();
+    csvText = await csvFile.text();
   } catch {
-    return Response.json(
-      { error: "Failed to read CSV file" },
-      { status: 400 }
-    );
+    return Response.json({ error: "Failed to read CSV file" }, { status: 400 });
   }
 
   const parsedRows = parseProductCSV(csvText);
   if (parsedRows.length === 0) {
-    return Response.json(
-      { error: "CSV is empty or invalid" },
-      { status: 400 }
-    );
+    return Response.json({ error: "CSV is empty or invalid" }, { status: 400 });
   }
 
-  // Extract images from ZIP and validate
-  const imageMap = zipFile ? await extractImagesFromZip(zipFile) : {};
-  const validated = await validateProductRows(parsedRows, imageMap);
+  const validated = await validateProductRows(parsedRows);
+  const encoder = new TextEncoder();
 
-  // Stream import events
   const stream = new ReadableStream({
     async start(controller) {
       try {
@@ -131,7 +69,7 @@ export async function POST(request: Request) {
         await logActivity(user, {
           action: "bulk_import",
           entity: "product",
-          summary: `Imported ${validated.length} rows from CSV${zipFile ? " + ZIP" : ""}`,
+          summary: `Imported ${validated.length} rows from CSV`,
         });
 
         controller.close();

@@ -2,18 +2,12 @@ import { productSchema } from "@/lib/validations/product";
 import {
   adminGetAllBrands,
   adminGetAllCategories,
-  adminGetProductBySlug,
 } from "@/lib/db/admin";
-import type {
-  ParsedProductRow,
-  ValidationResult,
-  ImageMap,
-  ImageOnlyValidationResult,
-} from "./types";
+import type { ParsedProductRow, ValidationResult } from "./types";
 
+/** Validates CSV product data. Images are not part of this import. */
 export async function validateProductRows(
-  rows: ParsedProductRow[],
-  imageMap: ImageMap
+  rows: ParsedProductRow[]
 ): Promise<ValidationResult[]> {
   // Fetch brands and categories once for all validations
   const [brands, categories] = await Promise.all([
@@ -111,44 +105,12 @@ export async function validateProductRows(
       }
     }
 
-    // Image warnings
-    const images = imageMap[row.data.slug];
-    if (!images || images.images.length === 0) {
-      warnings.push("No images provided");
-    }
-
     return {
       row,
       status:
         errors.length > 0 ? "error" : warnings.length > 0 ? "warning" : "valid",
       errors,
       warnings,
-      images,
     };
   });
-}
-
-export async function validateImageOnlyRows(
-  imageMap: ImageMap
-): Promise<ImageOnlyValidationResult[]> {
-  const results: ImageOnlyValidationResult[] = [];
-
-  for (const slug of Object.keys(imageMap)) {
-    const product = await adminGetProductBySlug(slug);
-    const images = imageMap[slug];
-
-    results.push({
-      slug,
-      productName: product
-        ? ((product.name as { en: string; th: string }).en ||
-          (product.name as { en: string; th: string }).th)
-        : null,
-      productExists: !!product,
-      images: {
-        imageCount: images.images.length,
-      },
-    });
-  }
-
-  return results;
 }

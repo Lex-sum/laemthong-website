@@ -4,7 +4,6 @@ import { useCallback, useEffect, useState } from "react";
 import {
   Upload,
   FileText,
-  FolderArchive,
   Download,
   AlertTriangle,
 } from "lucide-react";
@@ -17,12 +16,12 @@ import {
 } from "@/app/admin/(authenticated)/bulk-upload/actions";
 
 type UploadZoneProps = {
-  onFilesSelected: (csvFile: File | null, zipFile: File | null) => void;
+  onFileSelected: (csvFile: File) => void;
 };
 
-export function UploadZone({ onFilesSelected }: UploadZoneProps) {
+/** Product Data step 1: choose a CSV. Images are imported separately (Product Images tab). */
+export function UploadZone({ onFileSelected }: UploadZoneProps) {
   const [csvFile, setCsvFile] = useState<File | null>(null);
-  const [zipFile, setZipFile] = useState<File | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [productCount, setProductCount] = useState<number | null>(null);
 
@@ -45,11 +44,8 @@ export function UploadZone({ onFilesSelected }: UploadZoneProps) {
     setIsDragging(false);
 
     const files = Array.from(e.dataTransfer.files);
-    const csv = files.find((f) => f.name.endsWith(".csv"));
-    const zip = files.find((f) => f.name.endsWith(".zip"));
-
+    const csv = files.find((f) => f.name.toLowerCase().endsWith(".csv"));
     if (csv) setCsvFile(csv);
-    if (zip) setZipFile(zip);
   }, []);
 
   const handleCsvChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -58,16 +54,8 @@ export function UploadZone({ onFilesSelected }: UploadZoneProps) {
     }
   };
 
-  const handleZipChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files?.[0]) {
-      setZipFile(e.target.files[0]);
-    }
-  };
-
   const handleSubmit = () => {
-    if (csvFile || zipFile) {
-      onFilesSelected(csvFile, zipFile);
-    }
+    if (csvFile) onFileSelected(csvFile);
   };
 
   const downloadCsv = (csv: string, filename: string) => {
@@ -153,47 +141,6 @@ export function UploadZone({ onFilesSelected }: UploadZoneProps) {
         </div>
       </div>
 
-      {/* ZIP Upload */}
-      <div>
-        <label className="block text-sm font-medium mb-2">
-          Product Images (ZIP)
-        </label>
-        <div
-          className={cn(
-            "relative border-2 border-dashed rounded-lg p-8 text-center transition-colors",
-            isDragging
-              ? "border-primary bg-primary/5"
-              : "border-muted-foreground/25 hover:border-muted-foreground/50"
-          )}
-          onDragOver={handleDragOver}
-          onDragLeave={handleDragLeave}
-          onDrop={handleDrop}
-        >
-          <input
-            type="file"
-            accept=".zip"
-            onChange={handleZipChange}
-            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-          />
-          <FolderArchive className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
-          {zipFile ? (
-            <div>
-              <p className="font-medium">{zipFile.name}</p>
-              <p className="text-sm text-muted-foreground">
-                {formatFileSize(zipFile.size)}
-              </p>
-            </div>
-          ) : (
-            <div>
-              <p className="font-medium">Drop ZIP file here or click to browse</p>
-              <p className="text-sm text-muted-foreground mt-1">
-                ZIP containing images in products/[slug]/ folders
-              </p>
-            </div>
-          )}
-        </div>
-      </div>
-
       {/* Actions */}
       <div className="flex items-center justify-between gap-4">
         <div className="flex items-center gap-2">
@@ -220,7 +167,7 @@ export function UploadZone({ onFilesSelected }: UploadZoneProps) {
 
         <Button
           onClick={handleSubmit}
-          disabled={!csvFile && !zipFile}
+          disabled={!csvFile}
           className="gap-2"
         >
           <Upload className="h-4 w-4" />
@@ -238,21 +185,12 @@ export function UploadZone({ onFilesSelected }: UploadZoneProps) {
         </div>
 
         <div>
-          <p className="font-medium text-foreground">Upload Scenarios</p>
-          <ul className="list-disc list-inside space-y-1 ml-2 mt-1">
-            <li>
-              <strong>CSV only</strong> &mdash; add or update product data
-              without images
-            </li>
-            <li>
-              <strong>ZIP only</strong> &mdash; add images to existing products.
-              New slugs create placeholder products (uncategorized/unbranded)
-            </li>
-            <li>
-              <strong>CSV + ZIP</strong> &mdash; add or update products with
-              images together
-            </li>
-          </ul>
+          <p className="font-medium text-foreground">Images</p>
+          <p className="mt-1">
+            This CSV never adds, changes or removes product images &mdash; re-importing data
+            keeps existing images. Upload images in the <strong>Product Images</strong> tab after
+            the products exist.
+          </p>
         </div>
 
         <div>
@@ -302,34 +240,6 @@ export function UploadZone({ onFilesSelected }: UploadZoneProps) {
         </div>
 
         <div>
-          <p className="font-medium text-foreground">ZIP Structure</p>
-          <div className="mt-1 rounded border bg-muted/30 p-3 font-mono text-xs leading-relaxed whitespace-pre">
-{`products/
-├── [slug-a]/                 ← one folder per product slug
-│   ├── image-1.jpg           ← image-1 = thumbnail
-│   ├── image-2.jpg
-│   └── image-3.png
-└── [slug-b]/                 ← another product
-    ├── image-1.jpg
-    └── image-2.jpg`}
-          </div>
-          <ul className="list-disc list-inside space-y-1 ml-2 mt-2">
-            <li>
-              Each product gets its own folder named by its slug
-            </li>
-            <li>
-              Add multiple images per product (image-1, image-2, image-3, ...)
-            </li>
-            <li>
-              image-1 is always the thumbnail; numbering sets display order
-            </li>
-            <li>
-              Formats: JPG, PNG, WebP, AVIF, SVG (max 5 MB each)
-            </li>
-          </ul>
-        </div>
-
-        <div>
           <p className="font-medium text-foreground">
             Import Options{" "}
             <span className="font-normal text-muted-foreground">
@@ -338,8 +248,8 @@ export function UploadZone({ onFilesSelected }: UploadZoneProps) {
           </p>
           <ul className="list-disc list-inside space-y-1 ml-2 mt-1">
             <li>
-              <strong>Overwrite existing</strong> &mdash; updates products with
-              matching slugs. When off, duplicates are skipped.
+              <strong>Overwrite existing</strong> &mdash; updates the data of products with
+              matching slugs (images are kept). When off, duplicates are skipped.
             </li>
             <li>
               <strong>Skip errors</strong> &mdash; imports valid rows even if
@@ -358,8 +268,7 @@ export function UploadZone({ onFilesSelected }: UploadZoneProps) {
               Unknown <code className="text-xs bg-yellow-100 dark:bg-yellow-900 px-1 py-0.5 rounded">category_slug</code> or{" "}
               <code className="text-xs bg-yellow-100 dark:bg-yellow-900 px-1 py-0.5 rounded">brand_slug</code> values
               will auto-create placeholder entries. Double-check spelling to
-              avoid unintended entries. ZIP-only uploads with new slugs create
-              products as &quot;Uncategorized&quot; / &quot;Unbranded&quot;.
+              avoid unintended entries.
             </p>
           </div>
         </div>

@@ -1,71 +1,35 @@
 "use server";
 
+import { requireAdmin } from "@/lib/auth";
 import { parseProductCSV } from "@/lib/bulk-upload/csv-parser";
-import { extractImagesFromZip } from "@/lib/bulk-upload/zip-handler";
-import { validateProductRows, validateImageOnlyRows } from "@/lib/bulk-upload/validator";
+import { validateProductRows } from "@/lib/bulk-upload/validator";
 import { adminGetProductsForExport, adminGetProductCount } from "@/lib/db/admin";
 import type {
   ClientValidationResult,
-  ImageOnlyValidationResult,
-  UploadMode,
   ValidationStats,
 } from "@/lib/bulk-upload/types";
 
+/** Parses and validates a product data CSV for the preview step. */
 export async function parseAndValidateAction(formData: FormData): Promise<{
   success: boolean;
-  uploadMode?: UploadMode;
   rows?: ClientValidationResult[];
-  imageOnlyRows?: ImageOnlyValidationResult[];
   stats?: ValidationStats;
   error?: string;
 }> {
+  await requireAdmin();
+
   try {
     const csvFile = formData.get("csv") as File | null;
-    const zipFile = formData.get("zip") as File | null;
-
-    if (!csvFile && !zipFile) {
-      return { success: false, error: "At least one file (CSV or ZIP) is required" };
+    if (!csvFile) {
+      return { success: false, error: "A CSV file is required" };
     }
 
-    const uploadMode: UploadMode = csvFile && zipFile
-      ? "csv-and-zip"
-      : csvFile
-        ? "csv-only"
-        : "zip-only";
-
-    // ZIP-only path: validate images against existing products
-    if (uploadMode === "zip-only") {
-      const imageMap = await extractImagesFromZip(zipFile!);
-
-      if (Object.keys(imageMap).length === 0) {
-        return { success: false, error: "No product image folders found in ZIP. Expected structure: products/[slug]/1.jpg" };
-      }
-
-      const imageOnlyRows = await validateImageOnlyRows(imageMap);
-
-      const existingCount = imageOnlyRows.filter((r) => r.productExists).length;
-      const newCount = imageOnlyRows.filter((r) => !r.productExists).length;
-
-      const stats: ValidationStats = {
-        total: imageOnlyRows.length,
-        valid: existingCount,
-        warnings: newCount,
-        errors: 0,
-      };
-
-      return { success: true, uploadMode, imageOnlyRows, stats };
-    }
-
-    // CSV path (csv-only or csv-and-zip)
-    const csvText = await csvFile!.text();
-    const parsedRows = parseProductCSV(csvText);
-
+    const parsedRows = parseProductCSV(await csvFile.text());
     if (parsedRows.length === 0) {
       return { success: false, error: "CSV file is empty or invalid" };
     }
 
-    const imageMap = zipFile ? await extractImagesFromZip(zipFile) : {};
-    const validated = await validateProductRows(parsedRows, imageMap);
+    const validated = await validateProductRows(parsedRows);
 
     const stats: ValidationStats = {
       total: validated.length,
@@ -79,12 +43,9 @@ export async function parseAndValidateAction(formData: FormData): Promise<{
       status: v.status,
       errors: v.errors,
       warnings: v.warnings,
-      imageInfo: v.images
-        ? { imageCount: v.images.images.length }
-        : undefined,
     }));
 
-    return { success: true, uploadMode, rows: clientRows, stats };
+    return { success: true, rows: clientRows, stats };
   } catch (error) {
     return {
       success: false,
@@ -126,6 +87,8 @@ const CSV_HEADERS = [
 ];
 
 export async function downloadTemplateAction(): Promise<{ csv: string }> {
+  await requireAdmin();
+
   const row1 = csvEscapeRow([
     "example-product-1",
     "welding-machines",
@@ -173,6 +136,8 @@ export async function exportProductsAction(): Promise<{
   csv: string | null;
   count: number;
 }> {
+  await requireAdmin();
+
   const products = await adminGetProductsForExport();
 
   if (products.length === 0) {
@@ -214,5 +179,7 @@ export async function exportProductsAction(): Promise<{
 }
 
 export async function getProductCountAction(): Promise<number> {
+  await requireAdmin();
+
   return adminGetProductCount();
 }
