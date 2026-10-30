@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
   Table,
@@ -20,15 +21,93 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { DeleteDialog } from "@/components/admin/delete-dialog";
-import { ChevronLeft, ChevronRight, Mail, Building2, Phone, Package, MessageSquare } from "lucide-react";
-import { deleteInquiryAction } from "@/app/admin/actions/inquiries";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { ChevronLeft, ChevronRight, Mail, Building2, Phone, Package, MessageSquare, Loader2 } from "lucide-react";
+import { toast } from "sonner";
+import { deleteInquiryAction, updateInquiryAction } from "@/app/admin/actions/inquiries";
+import {
+  INQUIRY_STATUSES,
+  INQUIRY_STATUS_LABEL,
+  type InquiryStatus,
+} from "@/lib/inquiry-status";
 import type { ContactInquiryRow } from "@/lib/db/admin";
 
 type Props = {
   inquiries: ContactInquiryRow[];
   currentPage: number;
   totalPages: number;
+  /** Active status filter, kept in pagination links. */
+  statusFilter?: InquiryStatus;
 };
+
+const STATUS_STYLE: Record<InquiryStatus, string> = {
+  new: "border-primary text-primary",
+  in_progress: "border-amber-500 text-amber-600",
+  done: "text-muted-foreground",
+};
+
+function StatusBadge({ status }: { status: InquiryStatus }) {
+  return (
+    <Badge variant="outline" className={STATUS_STYLE[status]}>
+      {INQUIRY_STATUS_LABEL[status]}
+    </Badge>
+  );
+}
+
+/** Status + internal note editor shown in the detail sheet. */
+function InquiryWorkflow({ inquiry, onSaved }: { inquiry: ContactInquiryRow; onSaved: (next: ContactInquiryRow) => void }) {
+  const [status, setStatus] = useState<InquiryStatus>(inquiry.status ?? "new");
+  const [note, setNote] = useState(inquiry.note ?? "");
+  const [isSaving, setIsSaving] = useState(false);
+  const isDirty = status !== (inquiry.status ?? "new") || note !== (inquiry.note ?? "");
+
+  async function save() {
+    setIsSaving(true);
+    const result = await updateInquiryAction(inquiry.id, status, note);
+    setIsSaving(false);
+    if (result.success) {
+      toast.success("Inquiry updated");
+      onSaved({ ...inquiry, status, note });
+    } else {
+      toast.error(result.message ?? "Failed to update inquiry");
+    }
+  }
+
+  return (
+    <div className="space-y-3 border-t pt-4">
+      <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Follow-up</p>
+      <Select value={status} onValueChange={(v) => setStatus(v as InquiryStatus)}>
+        <SelectTrigger className="w-full">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {INQUIRY_STATUSES.map((s) => (
+            <SelectItem key={s} value={s}>
+              {INQUIRY_STATUS_LABEL[s]}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <Textarea
+        rows={3}
+        value={note}
+        onChange={(e) => setNote(e.target.value)}
+        placeholder="Internal note (not sent to the customer), e.g. quoted on 30 Oct, waiting for PO"
+      />
+      <Button size="sm" onClick={save} disabled={!isDirty || isSaving}>
+        {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+        Save
+      </Button>
+    </div>
+  );
+}
 
 function formatDate(dateStr: string): string {
   const d = new Date(dateStr);
@@ -41,15 +120,18 @@ function formatDate(dateStr: string): string {
   });
 }
 
-export function InquiriesTable({ inquiries, currentPage, totalPages }: Props) {
+export function InquiriesTable({ inquiries, currentPage, totalPages, statusFilter }: Props) {
+  const router = useRouter();
   const [selected, setSelected] = useState<ContactInquiryRow | null>(null);
+  const pageHref = (page: number) =>
+    `/admin/inquiries?page=${page}${statusFilter ? `&status=${statusFilter}` : ""}`;
 
   if (inquiries.length === 0) {
     return (
       <div className="flex flex-col items-center rounded-lg border py-20 text-center">
         <MessageSquare className="h-10 w-10 text-muted-foreground/40" />
         <p className="mt-4 text-sm font-medium text-muted-foreground">
-          No inquiries yet
+          {statusFilter ? `No ${INQUIRY_STATUS_LABEL[statusFilter].toLowerCase()} inquiries` : "No inquiries yet"}
         </p>
         <p className="mt-1 text-xs text-muted-foreground/60">
           Contact form submissions will appear here.
@@ -65,6 +147,7 @@ export function InquiriesTable({ inquiries, currentPage, totalPages }: Props) {
           <TableHeader>
             <TableRow>
               <TableHead className="w-[160px]">Date</TableHead>
+              <TableHead className="w-[120px]">Status</TableHead>
               <TableHead>Name</TableHead>
               <TableHead className="hidden md:table-cell">Company</TableHead>
               <TableHead className="hidden lg:table-cell">Email</TableHead>
@@ -81,6 +164,9 @@ export function InquiriesTable({ inquiries, currentPage, totalPages }: Props) {
               >
                 <TableCell className="text-xs text-muted-foreground">
                   {formatDate(inquiry.created_at)}
+                </TableCell>
+                <TableCell>
+                  <StatusBadge status={inquiry.status ?? "new"} />
                 </TableCell>
                 <TableCell className="font-medium max-w-[160px] truncate">{inquiry.name}</TableCell>
                 <TableCell className="hidden md:table-cell text-muted-foreground max-w-[160px] truncate">
@@ -113,7 +199,7 @@ export function InquiriesTable({ inquiries, currentPage, totalPages }: Props) {
       {totalPages > 1 && (
         <div className="flex items-center justify-center gap-2">
           {currentPage > 1 ? (
-            <Link href={`/admin/inquiries?page=${currentPage - 1}`}>
+            <Link href={pageHref(currentPage - 1)}>
               <Button variant="outline" size="sm">
                 <ChevronLeft className="mr-1 h-4 w-4" />
                 Previous
@@ -129,7 +215,7 @@ export function InquiriesTable({ inquiries, currentPage, totalPages }: Props) {
             Page {currentPage} of {totalPages}
           </span>
           {currentPage < totalPages ? (
-            <Link href={`/admin/inquiries?page=${currentPage + 1}`}>
+            <Link href={pageHref(currentPage + 1)}>
               <Button variant="outline" size="sm">
                 Next
                 <ChevronRight className="ml-1 h-4 w-4" />
@@ -190,6 +276,14 @@ export function InquiriesTable({ inquiries, currentPage, totalPages }: Props) {
                     {selected.message}
                   </p>
                 </div>
+                <InquiryWorkflow
+                  key={selected.id}
+                  inquiry={selected}
+                  onSaved={(next) => {
+                    setSelected(next);
+                    router.refresh();
+                  }}
+                />
                 <div className="border-t pt-4">
                   <a
                     href={`mailto:${selected.email}?subject=Re: Your inquiry to Laemthong Syndicate`}

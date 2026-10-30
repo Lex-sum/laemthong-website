@@ -154,7 +154,7 @@ export default async function ProductDetailPage({ params }: Props) {
                 {product.name[locale as Locale]}
               </h1>
 
-              <p className="mt-4 text-lg leading-relaxed text-muted-foreground">
+              <p className="mt-4 whitespace-pre-line text-lg leading-relaxed text-muted-foreground">
                 {product.description[locale as Locale]}
               </p>
 

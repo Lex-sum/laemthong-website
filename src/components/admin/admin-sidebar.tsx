@@ -11,6 +11,7 @@ import {
   SidebarGroupLabel,
   SidebarHeader,
   SidebarMenu,
+  SidebarMenuBadge,
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarMenuSub,
@@ -22,23 +23,34 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
-import { LayoutDashboard, Package, Building2, MessageSquare, ImageIcon, ChevronRight, Warehouse, Users, Landmark, Wrench } from "lucide-react";
+import { LayoutDashboard, Package, Building2, MessageSquare, ImageIcon, ChevronRight, Warehouse, Users, Landmark, Wrench, Tags, History } from "lucide-react";
 import { TABS } from "@/data/page-image-slots";
 
 const navItems = [
   { title: "Dashboard", href: "/admin", icon: LayoutDashboard },
   { title: "Products", href: "/admin/products", icon: Package },
   { title: "Products in SAP B1", href: "/admin/sap-products", icon: Warehouse },
+  { title: "Categories", href: "/admin/categories", icon: Tags },
   { title: "Brands", href: "/admin/brands", icon: Building2 },
   { title: "Services", href: "/admin/services", icon: Wrench },
   { title: "Inquiries", href: "/admin/inquiries", icon: MessageSquare },
 ];
 
-const ownerNavItems = [{ title: "Users", href: "/admin/users", icon: Users }];
+const ownerNavItems = [
+  { title: "Users", href: "/admin/users", icon: Users },
+  { title: "Activity Log", href: "/admin/activity", icon: History },
+];
 
-export function AdminSidebar({ isOwner = false }: { isOwner?: boolean }) {
+export function AdminSidebar({
+  isOwner = false,
+  newInquiries = 0,
+}: {
+  isOwner?: boolean;
+  /** Inquiries with status "new" — shown as a badge on the menu item. */
+  newInquiries?: number;
+}) {
   const pathname = usePathname();
-  const visibleNavItems = isOwner ? [...navItems, ...ownerNavItems] : navItems;
+  const isActive = (href: string) => (href === "/admin" ? pathname === "/admin" : pathname.startsWith(href));
   const searchParams = useSearchParams();
   const isPageContent = pathname.startsWith("/admin/content");
   const activeSection = searchParams.get("section") || TABS[0].value;
@@ -62,26 +74,43 @@ export function AdminSidebar({ isOwner = false }: { isOwner?: boolean }) {
           <SidebarGroupLabel>Management</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {visibleNavItems.map((item) => (
+              {navItems.map((item) => (
                 <SidebarMenuItem key={item.href}>
-                  <SidebarMenuButton
-                    asChild
-                    isActive={
-                      item.href === "/admin"
-                        ? pathname === "/admin"
-                        : pathname.startsWith(item.href)
-                    }
-                  >
+                  <SidebarMenuButton asChild isActive={isActive(item.href)}>
                     <Link href={item.href}>
                       <item.icon className="h-4 w-4" />
                       <span>{item.title}</span>
                     </Link>
                   </SidebarMenuButton>
+                  {item.href === "/admin/inquiries" && newInquiries > 0 && (
+                    <SidebarMenuBadge className="bg-primary text-primary-foreground">
+                      {newInquiries}
+                    </SidebarMenuBadge>
+                  )}
                 </SidebarMenuItem>
               ))}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
+        {isOwner && (
+          <SidebarGroup>
+            <SidebarGroupLabel>Owner</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {ownerNavItems.map((item) => (
+                  <SidebarMenuItem key={item.href}>
+                    <SidebarMenuButton asChild isActive={isActive(item.href)}>
+                      <Link href={item.href}>
+                        <item.icon className="h-4 w-4" />
+                        <span>{item.title}</span>
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                ))}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
         <SidebarGroup>
           <SidebarGroupLabel>Site</SidebarGroupLabel>
           <SidebarGroupContent>
@@ -118,7 +147,7 @@ export function AdminSidebar({ isOwner = false }: { isOwner?: boolean }) {
                 </SidebarMenuItem>
               </Collapsible>
               <SidebarMenuItem>
-                <SidebarMenuButton asChild isActive={pathname.startsWith("/admin/company")}>
+                <SidebarMenuButton asChild isActive={isActive("/admin/company")}>
                   <Link href="/admin/company">
                     <Landmark className="h-4 w-4" />
                     <span>Company Info</span>

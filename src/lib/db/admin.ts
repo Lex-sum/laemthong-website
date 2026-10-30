@@ -1,6 +1,7 @@
 import { createSupabaseAdminClient } from "@/lib/supabase";
 import { getRole, mustChangePassword, type AdminRole } from "@/lib/admin-roles";
 import { SERVICE_COLUMNS } from "@/lib/db/services";
+import { INQUIRY_STATUSES, type InquiryStatus } from "@/lib/inquiry-status";
 import type {
   DbBrand,
   DbCategory,
@@ -406,6 +407,10 @@ export interface ContactInquiryRow {
   product_interest: string | null;
   message: string;
   created_at: string;
+  /** Missing until the admin_cms migration has run — treat as "new". */
+  status?: InquiryStatus;
+  note?: string | null;
+  updated_at?: string | null;
 }
 
 export interface AdminInquiriesResult {
@@ -419,14 +424,15 @@ export interface AdminInquiriesResult {
 export async function adminGetContactInquiries(
   page = 1,
   pageSize = 20,
+  status?: InquiryStatus,
 ): Promise<AdminInquiriesResult> {
   const supabase = createSupabaseAdminClient();
   const from = (page - 1) * pageSize;
   const to = from + pageSize - 1;
 
-  const { data, error, count } = await supabase
-    .from("contact_inquiries")
-    .select("*", { count: "exact" })
+  let q = supabase.from("contact_inquiries").select("*", { count: "exact" });
+  if (status) q = q.eq("status", status);
+  const { data, error, count } = await q
     .order("created_at", { ascending: false })
     .range(from, to);
 
@@ -442,6 +448,33 @@ export async function adminGetContactInquiries(
     pageSize,
     totalPages: Math.ceil(total / pageSize),
   };
+}
+
+/** Count per status; all zero if the status column doesn't exist yet. */
+export async function adminGetInquiryStatusCounts(): Promise<Record<InquiryStatus, number>> {
+  const supabase = createSupabaseAdminClient();
+  const counts = await Promise.all(
+    INQUIRY_STATUSES.map(async (status) => {
+      const { count, error } = await supabase
+        .from("contact_inquiries")
+        .select("id", { count: "exact", head: true })
+        .eq("status", status);
+      return [status, error ? 0 : count ?? 0] as const;
+    })
+  );
+  return Object.fromEntries(counts) as Record<InquiryStatus, number>;
+}
+
+export async function adminUpdateInquiry(
+  id: string,
+  values: { status: InquiryStatus; note: string | null }
+): Promise<void> {
+  const supabase = createSupabaseAdminClient();
+  const { error } = await supabase
+    .from("contact_inquiries")
+    .update({ ...values, updated_at: new Date().toISOString() })
+    .eq("id", id);
+  if (error) throw error;
 }
 
 export async function adminGetContactInquiryCount(): Promise<number> {
