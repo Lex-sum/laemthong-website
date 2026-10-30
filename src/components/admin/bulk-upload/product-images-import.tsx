@@ -122,7 +122,6 @@ export function ProductImagesImport() {
   const [isDragging, setIsDragging] = useState(false);
   const zipInput = useRef<HTMLInputElement>(null);
   const folderInput = useRef<HTMLInputElement>(null);
-  const imageInput = useRef<HTMLInputElement>(null);
 
   // Allow picking a whole folder (non-standard attribute, so set it imperatively)
   useEffect(() => {
@@ -217,9 +216,9 @@ export function ProductImagesImport() {
             }}
           >
             <ImagePlus className="mx-auto mb-3 h-12 w-12 text-muted-foreground" />
-            <p className="font-medium">Drop a ZIP or image files here</p>
+            <p className="font-medium">Drop a ZIP here, or choose a ZIP or folder</p>
             <p className="mt-1 text-sm text-muted-foreground">
-              Images are matched to existing products by slug. Nothing is uploaded until you confirm.
+              One folder per product, named after its slug. Nothing is uploaded until you confirm.
             </p>
             <div className="mt-5 flex flex-wrap justify-center gap-2">
               <Button variant="outline" className="gap-2" onClick={() => zipInput.current?.click()}>
@@ -228,32 +227,24 @@ export function ProductImagesImport() {
               <Button variant="outline" className="gap-2" onClick={() => folderInput.current?.click()}>
                 <FolderOpen className="h-4 w-4" /> Choose folder
               </Button>
-              <Button variant="outline" className="gap-2" onClick={() => imageInput.current?.click()}>
-                <ImagePlus className="h-4 w-4" /> Choose images
-              </Button>
             </div>
             <input ref={zipInput} type="file" accept=".zip" hidden onChange={(e) => handleFiles(e.target.files)} />
             <input ref={folderInput} type="file" multiple hidden onChange={(e) => handleFiles(e.target.files)} />
-            <input
-              ref={imageInput}
-              type="file"
-              accept=".jpg,.jpeg,.png,.webp,.avif"
-              multiple
-              hidden
-              onChange={(e) => handleFiles(e.target.files)}
-            />
           </div>
 
           <div className="space-y-3 border-t pt-4 text-sm text-muted-foreground">
-            <p className="font-medium text-foreground">How to name files</p>
+            <p className="font-medium text-foreground">Folder structure</p>
             <div className="rounded border bg-muted/30 p-3 font-mono text-xs leading-relaxed whitespace-pre">
-{`1013010005/1.jpg      folder per product, number = order (1 = main image)
-1013010005/2.jpg
-products/1013010005/image-1.jpg   (also fine)
-1013010005_2.jpg      flat file: <slug>_<order>
-1013010005.jpg        flat file: just the slug = image 1`}
+{`products/                 (optional top folder)
+├── 1013010005/           ← folder name = product slug
+│   ├── 1.jpg             ← numbered files first: 1 = main image
+│   ├── 2.jpg
+│   └── side-view.png     ← any other name works, placed after numbered ones (A–Z)
+└── 1013010009/
+    └── front.jpg`}
             </div>
             <ul className="ml-2 list-inside list-disc space-y-1">
+              <li>Images must be inside a folder named after the product slug; loose files are skipped.</li>
               <li>The product must already exist — import Product Data first.</li>
               <li>JPG, PNG, WebP or AVIF, up to 5 MB each, up to 30 images per product per upload.</li>
               <li>Files that can&apos;t be used are listed with the reason before anything is uploaded.</li>

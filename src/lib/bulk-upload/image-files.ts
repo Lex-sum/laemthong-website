@@ -2,9 +2,10 @@
  * Reads image files for the Product Images import — runs in the browser, so large
  * ZIPs never pass through the server (Vercel limits request bodies to ~4.5 MB).
  *
- * Accepted names (slug = product slug, n = image order, 1 = main image):
- *   products/<slug>/<n>.jpg   <slug>/<n>.jpg   <slug>/image-<n>.jpg   (folders, any depth)
- *   <slug>_<n>.jpg   <slug>.jpg  (flat files; "<slug>.jpg" is image 1)
+ * Images must sit in a folder named after the product slug (one folder per product,
+ * any depth, e.g. 1013010005/front.jpg or products/1013010005/1.jpg). File names are free:
+ * numbered names (1, 2, image-3) come first in number order — 1 is the main image —
+ * then other names in alphabetical order.
  */
 export const IMAGE_TYPES: Record<string, string> = {
   jpg: "image/jpeg",
@@ -21,6 +22,7 @@ const SLUG = /^[a-z0-9-]+$/;
 
 export type ImageCandidate = {
   slug: string;
+  /** Number from a numbered file name; non-numbered names sort after, by name. */
   order: number;
   file: File;
   /** Path as it appeared in the ZIP / folder, for messages. */
@@ -36,28 +38,23 @@ function extensionOf(name: string): string {
 /** Works out slug + order from a path, or explains why it can't. */
 function parsePath(path: string): { slug: string; order: number } | { reason: string } {
   const parts = path.split("/").filter(Boolean);
+  if (parts.length < 2) {
+    return { reason: "Not in a product folder — put it in a folder named after the slug, e.g. 1013010005/1.jpg" };
+  }
+
+  const folderName = parts[parts.length - 2];
+  const folder = folderName.toLowerCase();
+  if (folder === "products") {
+    return { reason: "Directly inside \"products\" — put it in a folder named after the slug" };
+  }
+  if (!SLUG.test(folder)) {
+    return { reason: `Folder "${folderName}" is not a valid slug (letters, numbers and dashes only)` };
+  }
+
   const fileName = parts[parts.length - 1];
-  const ext = extensionOf(fileName);
-  const base = fileName.slice(0, -(ext.length + 1));
-
-  // In a folder named after the slug: <slug>/<n>.ext or <slug>/image-<n>.ext
-  if (parts.length >= 2) {
-    const folder = parts[parts.length - 2].toLowerCase();
-    const numbered = base.match(/^(?:image-)?(\d+)$/i);
-    if (numbered && folder !== "products") {
-      return SLUG.test(folder)
-        ? { slug: folder, order: Number(numbered[1]) }
-        : { reason: `Folder "${parts[parts.length - 2]}" is not a valid slug` };
-    }
-  }
-
-  // Flat: <slug>_<n>.ext or <slug>.ext
-  const flat = base.toLowerCase().match(/^([a-z0-9-]+?)(?:_(\d+))?$/);
-  if (flat && SLUG.test(flat[1])) {
-    return { slug: flat[1], order: flat[2] ? Number(flat[2]) : 1 };
-  }
-
-  return { reason: "Name doesn't match <slug>/<n>.jpg, <slug>_<n>.jpg or <slug>.jpg" };
+  const base = fileName.slice(0, fileName.lastIndexOf("."));
+  const numbered = base.match(/^(?:image-?)?(\d+)$/i);
+  return { slug: folder, order: numbered ? Number(numbered[1]) : Number.MAX_SAFE_INTEGER };
 }
 
 function check(source: string, file: File, images: ImageCandidate[], skipped: SkippedFile[]) {
@@ -85,7 +82,7 @@ function check(source: string, file: File, images: ImageCandidate[], skipped: Sk
   images.push({ ...parsed, file: typed, source });
 }
 
-/** Collects candidate images from ZIPs and/or loose files (including folder picks). */
+/** Collects candidate images from ZIPs and folder picks. */
 export async function collectImageFiles(
   inputs: File[]
 ): Promise<{ images: ImageCandidate[]; skipped: SkippedFile[] }> {
@@ -114,6 +111,11 @@ export async function collectImageFiles(
     }
   }
 
-  images.sort((a, b) => a.slug.localeCompare(b.slug) || a.order - b.order || a.source.localeCompare(b.source));
+  images.sort(
+    (a, b) =>
+      a.slug.localeCompare(b.slug) ||
+      a.order - b.order ||
+      a.source.localeCompare(b.source, undefined, { numeric: true, sensitivity: "base" })
+  );
   return { images, skipped };
 }
