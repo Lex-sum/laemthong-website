@@ -48,6 +48,8 @@ import type { DbProduct } from "@/data/types";
 
 interface ProductsTableProps {
   products: DbProduct[];
+  /** Slugs on this page that match a SAP B1 item code. */
+  sapSlugs?: string[];
   brandEntries: [string, string][];
   categoryEntries: [string, string][];
   total: number;
@@ -58,6 +60,7 @@ interface ProductsTableProps {
 
 export function ProductsTable({
   products,
+  sapSlugs = [],
   brandEntries,
   categoryEntries,
   total,
@@ -81,6 +84,7 @@ export function ProductsTable({
   useEffect(() => { setItems(products); }, [products]);
 
   const brandMap = useMemo(() => new Map(brandEntries), [brandEntries]);
+  const sapSet = useMemo(() => new Set(sapSlugs), [sapSlugs]);
   const categoryMap = useMemo(
     () => new Map(categoryEntries),
     [categoryEntries]
@@ -91,7 +95,8 @@ export function ProductsTable({
     searchParams.get("search") ||
     searchParams.get("category") ||
     searchParams.get("brand") ||
-    searchParams.get("overImageLimit")
+    searchParams.get("overImageLimit") ||
+    searchParams.get("sap")
   );
   const canReorder = !isFiltering;
 
@@ -265,6 +270,14 @@ export function ProductsTable({
                           <span className="text-xs text-muted-foreground tabular-nums shrink-0">
                             #{product.sort_order}
                           </span>
+                          {sapSet.has(product.slug) && (
+                            <span
+                              className="shrink-0 rounded border border-emerald-600/50 px-1.5 text-xs text-emerald-700 dark:text-emerald-300"
+                              title="Slug matches a SAP B1 item code"
+                            >
+                              SAP
+                            </span>
+                          )}
                           {product.images.length > MAX_PRODUCT_IMAGES && (
                             <span
                               className="shrink-0 rounded border border-amber-500/60 px-1.5 text-xs text-amber-700 dark:text-amber-300"

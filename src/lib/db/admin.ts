@@ -137,6 +137,8 @@ export interface AdminProductsQuery {
   brand?: string;
   /** Only products with more images than MAX_PRODUCT_IMAGES (after the limit is lowered). */
   overImageLimit?: boolean;
+  /** "in" = slug matches a SAP B1 item code, "out" = no SAP match. */
+  sap?: "in" | "out";
 }
 
 export interface AdminProductsResult {
@@ -145,6 +147,10 @@ export interface AdminProductsResult {
   page: number;
   pageSize: number;
   totalPages: number;
+  /** Slugs on this page that match a SAP B1 item code. */
+  sapSlugs: string[];
+  /** The SAP filter needs the admin_products_sap view (migration not run yet). */
+  sapFilterUnavailable?: boolean;
 }
 
 export async function adminGetProducts(
@@ -157,10 +163,14 @@ export async function adminGetProducts(
     category,
     brand,
     overImageLimit,
+    sap,
   } = query;
 
   const supabase = createSupabaseAdminClient();
-  let q = supabase.from("products").select("*", { count: "exact" });
+  // The SAP filter reads the admin_products_sap view (products + in_sap flag)
+  let q = sap
+    ? supabase.from("admin_products_sap").select("*", { count: "exact" }).eq("in_sap", sap === "in")
+    : supabase.from("products").select("*", { count: "exact" });
 
   if (overImageLimit) q = q.not(OVER_IMAGE_LIMIT_PATH, "is", null);
 
@@ -185,16 +195,42 @@ export async function adminGetProducts(
   const { data, error, count } = await q;
 
   if (error) {
-    return { products: [], total: 0, page, pageSize, totalPages: 0 };
+    return {
+      products: [],
+      total: 0,
+      page,
+      pageSize,
+      totalPages: 0,
+      sapSlugs: [],
+      sapFilterUnavailable: !!sap,
+    };
+  }
+
+  // Strip the view-only column so rows match DbProduct
+  const products = (data as (DbProduct & { in_sap?: boolean })[]).map((row) => {
+    const { in_sap: _inSap, ...product } = row;
+    void _inSap;
+    return product as DbProduct;
+  });
+
+  // SAP badges for this page (one small query; works without the view)
+  let sapSlugs: string[] = [];
+  if (products.length > 0) {
+    const { data: matches } = await supabase
+      .from("sap_stock")
+      .select("item_code")
+      .in("item_code", products.map((p) => p.slug));
+    sapSlugs = (matches ?? []).map((m) => m.item_code as string);
   }
 
   const total = count ?? 0;
   return {
-    products: data as DbProduct[],
+    products,
     total,
     page,
     pageSize,
     totalPages: Math.ceil(total / pageSize),
+    sapSlugs,
   };
 }
 

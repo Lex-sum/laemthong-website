@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Search, X } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 interface ProductsTableToolbarProps {
   brandEntries: [string, string][];
@@ -30,6 +31,7 @@ export function ProductsTableToolbar({
   const currentSearch = searchParams.get("search") ?? "";
   const currentCategory = searchParams.get("category") ?? "";
   const currentBrand = searchParams.get("brand") ?? "";
+  const currentSap = searchParams.get("sap") ?? "";
 
   const [searchInput, setSearchInput] = useState(currentSearch);
 
@@ -67,7 +69,7 @@ export function ProductsTableToolbar({
     return () => clearTimeout(timer);
   }, [searchInput, currentSearch, updateParams]);
 
-  const hasFilters = currentSearch || currentCategory || currentBrand;
+  const hasFilters = currentSearch || currentCategory || currentBrand || currentSap;
 
   const clearFilters = () => {
     setSearchInput("");
@@ -123,6 +125,30 @@ export function ProductsTableToolbar({
           ))}
         </SelectContent>
       </Select>
+
+      {/* SAP B1 match: product slug = SAP item code */}
+      <div className="inline-flex rounded-md border p-0.5" role="group" aria-label="Filter by SAP B1">
+        {(
+          [
+            ["", "All"],
+            ["in", "In SAP"],
+            ["out", "Not in SAP"],
+          ] as const
+        ).map(([value, label]) => (
+          <button
+            key={label}
+            type="button"
+            onClick={() => updateParams({ sap: value || null })}
+            aria-pressed={currentSap === value}
+            className={cn(
+              "rounded px-3 py-1 text-sm transition-colors",
+              currentSap === value ? "bg-foreground text-background" : "text-muted-foreground hover:bg-muted"
+            )}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
 
       {hasFilters && (
         <Button

@@ -34,6 +34,7 @@ export default async function AdminProductsPage({ searchParams }: Props) {
     category: typeof params.category === "string" ? params.category : undefined,
     brand: typeof params.brand === "string" ? params.brand : undefined,
     overImageLimit: params.overImageLimit === "1",
+    sap: params.sap === "in" || params.sap === "out" ? params.sap : undefined,
   };
 
   const [result, brands, categories, overLimitCount] = await Promise.all([
@@ -95,8 +96,17 @@ export default async function AdminProductsPage({ searchParams }: Props) {
         </div>
       )}
 
+      {result.sapFilterUnavailable && (
+        <div className="rounded-lg border border-amber-500/50 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:bg-amber-950 dark:text-amber-100">
+          The In SAP / Not in SAP filter needs a database update: run{" "}
+          <code className="rounded bg-amber-100 px-1 dark:bg-amber-900">supabase/migrations/20261102000000_admin_products_sap_view.sql</code>{" "}
+          in the Supabase SQL Editor.
+        </div>
+      )}
+
       <ProductsTable
         products={result.products}
+        sapSlugs={result.sapSlugs}
         brandEntries={brandEntries}
         categoryEntries={categoryEntries}
         total={result.total}
