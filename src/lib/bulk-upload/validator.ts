@@ -1,71 +1,77 @@
-import { productSchema } from "@/lib/validations/product";
+import { slugSchema } from "@/lib/validations/shared";
 import {
   adminGetAllBrands,
   adminGetAllCategories,
+  adminGetAllProductSlugs,
 } from "@/lib/db/admin";
+import { parseFeatured } from "./csv-parser";
 import type { ParsedProductRow, ValidationResult } from "./types";
 
 /** Validates CSV product data. Images are not part of this import. */
 export async function validateProductRows(
   rows: ParsedProductRow[]
 ): Promise<ValidationResult[]> {
-  // Fetch brands and categories once for all validations
-  const [brands, categories] = await Promise.all([
+  // Fetch brands, categories and existing products once for all rows
+  const [brands, categories, productSlugs] = await Promise.all([
     adminGetAllBrands(),
     adminGetAllCategories(),
+    adminGetAllProductSlugs(),
   ]);
 
   const brandSlugs = new Set(brands.map((b) => b.slug));
   const categorySlugs = new Set(categories.map((c) => c.slug));
+  const existingSlugs = new Set(productSlugs);
   const seenSlugs = new Set<string>();
 
   return rows.map((row) => {
     const errors: string[] = [];
     const warnings: string[] = [];
+    const { data } = row;
+    const action = existingSlugs.has(data.slug) ? "update" : "create";
 
-    // Zod validation
-    const validated = productSchema.safeParse(row.data);
-    if (!validated.success) {
-      errors.push(
-        ...validated.error.issues.map(
-          (e) => `${e.path.join(".")}: ${e.message}`
-        )
-      );
+    // Required cells
+    if (!data.slug) {
+      errors.push("slug is required");
+    } else {
+      const slug = slugSchema.safeParse(data.slug);
+      if (!slug.success) errors.push(`slug: ${slug.error.issues[0].message}`);
+    }
+    if (!data.categorySlug) errors.push("category_slug is required");
+    if (!data.brandSlug) errors.push("brand_slug is required");
+    if (!data.nameTh) errors.push("name_th is required");
+
+    if (parseFeatured(data.featured) === null) {
+      errors.push(`featured must be true/false, 1/0 or yes/no (got '${data.featured}')`);
+    }
+
+    if (action === "create" && !data.shortDescriptionTh) {
+      warnings.push("New product without short_description_th — product cards will show no summary");
     }
 
     // Foreign key validation with auto-creation tracking
-    if (row.data.brandSlug && !brandSlugs.has(row.data.brandSlug)) {
-      warnings.push(
-        `Brand '${row.data.brandSlug}' will be auto-created with minimal data`
-      );
-      brandSlugs.add(row.data.brandSlug); // Mark for creation
+    if (data.brandSlug && !brandSlugs.has(data.brandSlug)) {
+      warnings.push(`Brand '${data.brandSlug}' will be auto-created with minimal data`);
+      brandSlugs.add(data.brandSlug); // Mark for creation
     }
 
-    if (row.data.categorySlug && !categorySlugs.has(row.data.categorySlug)) {
-      warnings.push(
-        `Category '${row.data.categorySlug}' will be auto-created with minimal data`
-      );
-      categorySlugs.add(row.data.categorySlug); // Mark for creation
+    if (data.categorySlug && !categorySlugs.has(data.categorySlug)) {
+      warnings.push(`Category '${data.categorySlug}' will be auto-created with minimal data`);
+      categorySlugs.add(data.categorySlug); // Mark for creation
     }
 
     // Duplicate slug detection
-    if (seenSlugs.has(row.data.slug)) {
-      errors.push(`Duplicate slug '${row.data.slug}' in this batch`);
+    if (data.slug && seenSlugs.has(data.slug)) {
+      errors.push(`Duplicate slug '${data.slug}' in this file`);
     }
-    seenSlugs.add(row.data.slug);
+    seenSlugs.add(data.slug);
 
     // Specification column count validation
-    if (
-      row.data.specLabelsTh ||
-      row.data.specLabelsEn ||
-      row.data.specValuesTh ||
-      row.data.specValuesEn
-    ) {
+    if (data.specLabelsTh || data.specLabelsEn || data.specValuesTh || data.specValuesEn) {
       const counts: Record<string, number> = {};
-      if (row.data.specLabelsTh) counts.spec_labels_th = row.data.specLabelsTh.split("|").length;
-      if (row.data.specLabelsEn) counts.spec_labels_en = row.data.specLabelsEn.split("|").length;
-      if (row.data.specValuesTh) counts.spec_values_th = row.data.specValuesTh.split("|").length;
-      if (row.data.specValuesEn) counts.spec_values_en = row.data.specValuesEn.split("|").length;
+      if (data.specLabelsTh) counts.spec_labels_th = data.specLabelsTh.split("|").length;
+      if (data.specLabelsEn) counts.spec_labels_en = data.specLabelsEn.split("|").length;
+      if (data.specValuesTh) counts.spec_values_th = data.specValuesTh.split("|").length;
+      if (data.specValuesEn) counts.spec_values_en = data.specValuesEn.split("|").length;
 
       const entries = Object.entries(counts);
       if (entries.length > 1) {
@@ -76,39 +82,23 @@ export async function validateProductRows(
           errors.push(`Specification column count mismatch (${detail})`);
         }
       }
-
-      const hasTh = row.data.specLabelsTh || row.data.specValuesTh;
-      const hasEn = row.data.specLabelsEn || row.data.specValuesEn;
-      if (hasTh && !hasEn) {
-        warnings.push("Specifications have Thai data but no English translations");
-      }
-      if (hasEn && !hasTh) {
-        warnings.push("Specifications have English data but no Thai translations");
-      }
     }
 
     // Feature column count validation
-    if (row.data.featuresTh || row.data.featuresEn) {
-      const thCount = row.data.featuresTh ? row.data.featuresTh.split("|").length : 0;
-      const enCount = row.data.featuresEn ? row.data.featuresEn.split("|").length : 0;
-
-      if (thCount > 0 && enCount > 0 && thCount !== enCount) {
+    if (data.featuresTh && data.featuresEn) {
+      const thCount = data.featuresTh.split("|").length;
+      const enCount = data.featuresEn.split("|").length;
+      if (thCount !== enCount) {
         errors.push(
           `Feature column count mismatch: features_th has ${thCount} items but features_en has ${enCount}`
         );
-      }
-      if (row.data.featuresTh && !row.data.featuresEn) {
-        warnings.push("Features have Thai data but no English translations");
-      }
-      if (row.data.featuresEn && !row.data.featuresTh) {
-        warnings.push("Features have English data but no Thai translations");
       }
     }
 
     return {
       row,
-      status:
-        errors.length > 0 ? "error" : warnings.length > 0 ? "warning" : "valid",
+      action,
+      status: errors.length > 0 ? "error" : warnings.length > 0 ? "warning" : "valid",
       errors,
       warnings,
     };

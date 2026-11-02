@@ -195,19 +195,28 @@ export function UploadZone({ onFileSelected }: UploadZoneProps) {
         </div>
 
         <div>
+          <p className="font-medium text-foreground">How Columns Are Read</p>
+          <p className="mt-1">
+            Values are matched by the column name in the header row, so columns can be in any
+            order and optional columns can be left out. A missing column or a blank cell never
+            erases data: new products get an empty field and existing products keep their current
+            value. Display order is automatic &mdash; new products are added at the end of the list
+            (reorder them on the Products page).
+          </p>
+        </div>
+
+        <div>
           <p className="font-medium text-foreground">
             CSV Columns &mdash; Required
           </p>
           <div className="mt-1 rounded border bg-muted/30 p-3 font-mono text-xs leading-relaxed">
             slug &mdash; Unique ID (lowercase letters, numbers, dashes only)
             <br />
-            name_th &mdash; Product name (Thai)
-            <br />
-            short_description_th &mdash; Short description (Thai)
-            <br />
             category_slug &mdash; Must exist or will be auto-created
             <br />
             brand_slug &mdash; Must exist or will be auto-created
+            <br />
+            name_th &mdash; Product name (Thai)
           </div>
         </div>
 
@@ -216,16 +225,15 @@ export function UploadZone({ onFileSelected }: UploadZoneProps) {
             CSV Columns &mdash; Optional
           </p>
           <div className="mt-1 rounded border bg-muted/30 p-3 font-mono text-xs leading-relaxed">
+            short_description_th &mdash; Short description (Thai), shown on product cards
+            <br />
             name_en, short_description_en &mdash; English (without them the English site
             shows Thai and the product page stays out of Google until translated)
             <br />
             description_th, description_en &mdash; Long description (short description used
             if empty)
             <br />
-            featured &mdash; &quot;true&quot; or &quot;1&quot; to feature
-            (default: false)
-            <br />
-            sort_order &mdash; Display order, 0 or higher (default: 0)
+            featured &mdash; true/false, 1/0 or yes/no (new products default to false)
             <br />
             spec_labels_th, spec_labels_en &mdash; Pipe-separated spec labels
             <br />
@@ -240,7 +248,8 @@ export function UploadZone({ onFileSelected }: UploadZoneProps) {
               Weight|Voltage|Power
             </code>
             . All spec columns must have the same number of items. Features must
-            also match between Thai and English if both are provided.
+            also match between Thai and English if both are provided. When updating, a language
+            left blank keeps its current text.
           </p>
         </div>
 

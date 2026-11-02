@@ -1,5 +1,5 @@
 import Papa from "papaparse";
-import type { ParsedProductRow, ParsedSpecification, ParsedFeature } from "./types";
+import type { ParsedCsv, ParsedProductRow, ParsedSpecification, ParsedFeature } from "./types";
 
 /**
  * Reads an uploaded CSV as text. Our exports are UTF-8 (with BOM), but Excel's plain
@@ -15,38 +15,77 @@ export async function readCsvFile(file: File): Promise<string> {
   }
 }
 
-function splitPipe(value: string): string[] {
+/** Columns the import understands. Order doesn't matter — values are matched by header name. */
+export const CSV_COLUMNS = [
+  "slug",
+  "category_slug",
+  "brand_slug",
+  "name_th",
+  "name_en",
+  "short_description_th",
+  "short_description_en",
+  "description_th",
+  "description_en",
+  "featured",
+  "spec_labels_th",
+  "spec_labels_en",
+  "spec_values_th",
+  "spec_values_en",
+  "features_th",
+  "features_en",
+] as const;
+
+export const REQUIRED_CSV_COLUMNS = ["slug", "category_slug", "brand_slug", "name_th"] as const;
+
+const KNOWN = new Set<string>(CSV_COLUMNS);
+
+function splitPipe(value: string | undefined): string[] {
   if (!value) return [];
   return value.split("|").map((s) => s.trim());
 }
 
-export function parseProductCSV(csvText: string): ParsedProductRow[] {
+/**
+ * Parses a product CSV by header name: columns can be in any order and optional columns
+ * can be left out. A missing column or a blank cell means "no value" — new products get
+ * an empty field and existing products keep what they have.
+ * Throws if a required column is missing from the header.
+ */
+export function parseProductCSV(csvText: string): ParsedCsv {
   const result = Papa.parse<Record<string, string>>(csvText, {
     header: true,
-    skipEmptyLines: true,
-    transformHeader: (header) => header.trim(),
+    skipEmptyLines: "greedy",
+    transformHeader: (header) => header.replace(/^﻿/, "").trim().toLowerCase(),
   });
 
-  if (result.errors.length > 0) {
+  // Rows with too few / too many cells are fine (missing cells are blank)
+  const fatal = result.errors.filter((e) => e.type !== "FieldMismatch");
+  if (fatal.length > 0) {
+    throw new Error(`CSV parsing error: ${fatal.map((e) => e.message).join(", ")}`);
+  }
+
+  const columns = (result.meta.fields ?? []).filter(Boolean);
+  const missing = REQUIRED_CSV_COLUMNS.filter((c) => !columns.includes(c));
+  if (missing.length > 0) {
     throw new Error(
-      `CSV parsing error: ${result.errors.map((e) => e.message).join(", ")}`
+      `Missing required column${missing.length > 1 ? "s" : ""}: ${missing.join(", ")}. ` +
+        `The header row must contain ${REQUIRED_CSV_COLUMNS.join(", ")} (any order).`
     );
   }
 
-  return result.data.map((row, index) => {
-    // Read raw pipe-separated columns
-    const specLabelsTh = row.spec_labels_th?.trim() || "";
-    const specLabelsEn = row.spec_labels_en?.trim() || "";
-    const specValuesTh = row.spec_values_th?.trim() || "";
-    const specValuesEn = row.spec_values_en?.trim() || "";
-    const featuresTh = row.features_th?.trim() || "";
-    const featuresEn = row.features_en?.trim() || "";
+  const ignoredColumns = columns.filter((c) => !KNOWN.has(c));
 
-    // Parse specifications
-    const hasSpecs = specLabelsTh || specLabelsEn || specValuesTh || specValuesEn;
+  const rows: ParsedProductRow[] = result.data.map((row, index) => {
+    const cell = (column: string) => row[column]?.trim() || undefined;
+
+    const specLabelsTh = cell("spec_labels_th");
+    const specLabelsEn = cell("spec_labels_en");
+    const specValuesTh = cell("spec_values_th");
+    const specValuesEn = cell("spec_values_en");
+    const featuresTh = cell("features_th");
+    const featuresEn = cell("features_en");
+
     let parsedSpecifications: ParsedSpecification[] | undefined;
-
-    if (hasSpecs) {
+    if (specLabelsTh || specLabelsEn || specValuesTh || specValuesEn) {
       const labelsThArr = splitPipe(specLabelsTh);
       const labelsEnArr = splitPipe(specLabelsEn);
       const valuesThArr = splitPipe(specValuesTh);
@@ -66,54 +105,51 @@ export function parseProductCSV(csvText: string): ParsedProductRow[] {
       }
     }
 
-    // Parse features
-    const hasFeatures = featuresTh || featuresEn;
     let parsedFeatures: ParsedFeature[] | undefined;
-
-    if (hasFeatures) {
+    if (featuresTh || featuresEn) {
       const featuresThArr = splitPipe(featuresTh);
       const featuresEnArr = splitPipe(featuresEn);
       const featureCount = Math.max(featuresThArr.length, featuresEnArr.length);
       parsedFeatures = [];
       for (let i = 0; i < featureCount; i++) {
-        parsedFeatures.push({
-          th: featuresThArr[i] || "",
-          en: featuresEnArr[i] || "",
-        });
+        parsedFeatures.push({ th: featuresThArr[i] || "", en: featuresEnArr[i] || "" });
       }
     }
 
     return {
-      index: index + 1,
+      // CSV line number (header is line 1)
+      index: index + 2,
       data: {
-        slug: row.slug?.trim() || "",
-        nameTh: row.name_th?.trim() || "",
-        nameEn: row.name_en?.trim() || "",
-        shortDescriptionTh: row.short_description_th?.trim() || "",
-        shortDescriptionEn: row.short_description_en?.trim() || "",
-        descriptionTh: row.description_th?.trim() || "",
-        descriptionEn: row.description_en?.trim() || "",
-        categorySlug: row.category_slug?.trim() || "",
-        brandSlug: row.brand_slug?.trim() || "",
-        featured: row.featured?.trim() || undefined,
-        sortOrder: row.sort_order ? parseInt(row.sort_order, 10) : 0,
-        // Complex fields omitted for CSV format
-        gallery: undefined,
-        specifications: undefined,
-        features: undefined,
-        documents: undefined,
-        image: undefined,
-        // Pipe-separated raw strings
-        specLabelsTh: specLabelsTh || undefined,
-        specLabelsEn: specLabelsEn || undefined,
-        specValuesTh: specValuesTh || undefined,
-        specValuesEn: specValuesEn || undefined,
-        featuresTh: featuresTh || undefined,
-        featuresEn: featuresEn || undefined,
-        // Parsed structured data
+        slug: cell("slug") ?? "",
+        categorySlug: cell("category_slug") ?? "",
+        brandSlug: cell("brand_slug") ?? "",
+        nameTh: cell("name_th") ?? "",
+        nameEn: cell("name_en"),
+        shortDescriptionTh: cell("short_description_th"),
+        shortDescriptionEn: cell("short_description_en"),
+        descriptionTh: cell("description_th"),
+        descriptionEn: cell("description_en"),
+        featured: cell("featured"),
+        specLabelsTh,
+        specLabelsEn,
+        specValuesTh,
+        specValuesEn,
+        featuresTh,
+        featuresEn,
         parsedSpecifications,
         parsedFeatures,
       },
     };
   });
+
+  return { rows, columns, ignoredColumns };
+}
+
+/** "true"/"1"/"yes" → true, "false"/"0"/"no" → false, blank → undefined, anything else → null. */
+export function parseFeatured(value: string | undefined): boolean | undefined | null {
+  if (value === undefined) return undefined;
+  const v = value.toLowerCase();
+  if (v === "true" || v === "1" || v === "yes") return true;
+  if (v === "false" || v === "0" || v === "no") return false;
+  return null;
 }

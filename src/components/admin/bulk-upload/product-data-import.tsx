@@ -36,6 +36,7 @@ export function ProductDataImport() {
     failed: 0,
     failures: [],
   });
+  const [notices, setNotices] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -64,6 +65,7 @@ export function ProductDataImport() {
       }
 
       setStats(result.stats);
+      setNotices(result.notices ?? []);
 
       if (result.rows) {
         setValidatedRows(result.rows);
@@ -212,6 +214,16 @@ export function ProductDataImport() {
 
         {step === "upload" && (
           <UploadZone onFileSelected={handleFileSelected} />
+        )}
+
+        {step === "preview" && notices.length > 0 && (
+          <div className="mb-6 rounded-lg border bg-muted/50 p-4 text-sm text-muted-foreground">
+            <ul className="list-disc space-y-1 pl-5">
+              {notices.map((notice) => (
+                <li key={notice}>{notice}</li>
+              ))}
+            </ul>
+          </div>
         )}
 
         {step === "preview" && (

@@ -9,24 +9,20 @@ export type ParsedFeature = {
 };
 
 export type ParsedProductRow = {
-  index: number; // Row number in CSV (1-based)
+  index: number; // Line number in the CSV file (header is line 1)
+  // Optional fields are undefined when the column is missing or the cell is blank:
+  // new products get an empty value, existing products keep theirs.
   data: {
     slug: string;
-    nameTh: string;
-    nameEn: string;
-    shortDescriptionTh: string;
-    shortDescriptionEn: string;
-    descriptionTh: string;
-    descriptionEn: string;
     categorySlug: string;
     brandSlug: string;
+    nameTh: string;
+    nameEn?: string;
+    shortDescriptionTh?: string;
+    shortDescriptionEn?: string;
+    descriptionTh?: string;
+    descriptionEn?: string;
     featured?: string;
-    sortOrder: number;
-    // Complex fields omitted for CSV format
-    images?: string;
-    specifications?: string;
-    features?: string;
-    documents?: string;
     // Pipe-separated raw strings from CSV (for validation messages)
     specLabelsTh?: string;
     specLabelsEn?: string;
@@ -40,10 +36,20 @@ export type ParsedProductRow = {
   };
 };
 
+export type ParsedCsv = {
+  rows: ParsedProductRow[];
+  /** Header names found in the file (trimmed, lowercase) */
+  columns: string[];
+  /** Header names the import doesn't use (e.g. typos or an old sort_order column) */
+  ignoredColumns: string[];
+};
+
 export type ValidationStatus = "valid" | "warning" | "error";
 
 export type ValidationResult = {
   row: ParsedProductRow;
+  /** Whether the slug already exists (update) or is new (create) */
+  action: "create" | "update";
   status: ValidationStatus;
   errors: string[];
   warnings: string[];
@@ -51,6 +57,8 @@ export type ValidationResult = {
 
 export type ClientValidationResult = {
   row: ParsedProductRow;
+  /** Whether the slug already exists (update) or is new (create) */
+  action: "create" | "update";
   status: ValidationStatus;
   errors: string[];
   warnings: string[];

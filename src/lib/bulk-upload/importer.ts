@@ -7,7 +7,12 @@ import {
   adminCreateProduct,
   adminUpdateProduct,
 } from "@/lib/db/admin";
-import type { ValidationResult, ImportOptions, ImportEvent } from "./types";
+import { getNextSortOrder } from "@/lib/db/sort-order";
+import type { DbProduct, LocalizedString } from "@/data/types";
+import { parseFeatured } from "./csv-parser";
+import type { ValidationResult, ImportOptions, ImportEvent, ParsedProductRow } from "./types";
+
+type Spec = { label: LocalizedString; value: LocalizedString };
 
 function slugToTitle(slug: string): string {
   return slug
@@ -16,9 +21,63 @@ function slugToTitle(slug: string): string {
     .join(" ");
 }
 
+/** CSV value if given, otherwise the current one (blank / missing cells never erase data). */
+function pick(value: string | undefined, current: string): string {
+  return value ?? current;
+}
+
+/** Spec items from the CSV; a language left blank keeps the current text at the same position. */
+function mergeSpecs(parsed: Spec[], current: Spec[]): Spec[] {
+  return parsed.map((spec, i) => ({
+    label: {
+      th: spec.label.th || current[i]?.label.th || "",
+      en: spec.label.en || current[i]?.label.en || "",
+    },
+    value: {
+      th: spec.value.th || current[i]?.value.th || "",
+      en: spec.value.en || current[i]?.value.en || "",
+    },
+  }));
+}
+
+function mergeFeatures(parsed: LocalizedString[], current: LocalizedString[]): LocalizedString[] {
+  return parsed.map((feature, i) => ({
+    th: feature.th || current[i]?.th || "",
+    en: feature.en || current[i]?.en || "",
+  }));
+}
+
+/** Only the fields the CSV fills in: name_th, category and brand are always present. */
+function buildUpdate(data: ParsedProductRow["data"], existing: DbProduct) {
+  const update: Partial<Omit<DbProduct, "updated_at">> = {
+    category_slug: data.categorySlug,
+    brand_slug: data.brandSlug,
+    name: { th: data.nameTh, en: pick(data.nameEn, existing.name.en) },
+    short_description: {
+      th: pick(data.shortDescriptionTh, existing.short_description.th),
+      en: pick(data.shortDescriptionEn, existing.short_description.en),
+    },
+    description: {
+      th: pick(data.descriptionTh, existing.description.th),
+      en: pick(data.descriptionEn, existing.description.en),
+    },
+  };
+  const featured = parseFeatured(data.featured);
+  if (typeof featured === "boolean") update.featured = featured;
+  if (data.parsedSpecifications) {
+    update.specifications = mergeSpecs(data.parsedSpecifications, existing.specifications ?? []);
+  }
+  if (data.parsedFeatures) {
+    update.features = mergeFeatures(data.parsedFeatures, existing.features ?? []);
+  }
+  return update;
+}
+
 /**
- * Imports product DATA from CSV. Never touches images: new products start with
- * no images and updates leave existing images as they are (images have their own import).
+ * Imports product DATA from CSV. Never touches images or documents: new products start
+ * with none and updates leave them as they are (images have their own import).
+ * Display order is automatic: new products are added after the current last product,
+ * in file order; existing products keep their position.
  */
 export async function* importProducts(
   validatedRows: ValidationResult[],
@@ -26,41 +85,29 @@ export async function* importProducts(
 ): AsyncGenerator<ImportEvent> {
   const stats = { created: 0, updated: 0, skipped: 0, failed: 0 };
   const failures: { slug: string; error: string }[] = [];
+  let nextSortOrder: number | null = null;
 
   for (let i = 0; i < validatedRows.length; i++) {
     const result = validatedRows[i];
+    const { data } = result.row;
 
-    // Skip rows with errors (if option enabled)
-    if (result.status === "error" && options.skipErrors) {
+    // Rows with errors are never imported
+    if (result.status === "error") {
       stats.skipped++;
       yield {
         type: "skipped",
-        slug: result.row.data.slug,
-        reason: result.errors.join("; "),
-      };
-      continue;
-    }
-
-    // Skip rows with errors (if skipErrors is false, they shouldn't be in the list)
-    if (result.status === "error" && !options.skipErrors) {
-      stats.skipped++;
-      yield {
-        type: "skipped",
-        slug: result.row.data.slug,
-        reason: "Has validation errors",
+        slug: data.slug,
+        reason: options.skipErrors ? result.errors.join("; ") : "Has validation errors",
       };
       continue;
     }
 
     try {
       // Auto-create brand if needed
-      if (
-        result.row.data.brandSlug &&
-        !(await adminGetBrandBySlug(result.row.data.brandSlug))
-      ) {
+      if (data.brandSlug && !(await adminGetBrandBySlug(data.brandSlug))) {
         await adminCreateBrand({
-          slug: result.row.data.brandSlug,
-          name: slugToTitle(result.row.data.brandSlug),
+          slug: data.brandSlug,
+          name: slugToTitle(data.brandSlug),
           description: { th: "", en: "" },
           logo: "",
           website: null,
@@ -70,75 +117,56 @@ export async function* importProducts(
       }
 
       // Auto-create category if needed
-      if (
-        result.row.data.categorySlug &&
-        !(await adminGetCategoryBySlug(result.row.data.categorySlug))
-      ) {
+      if (data.categorySlug && !(await adminGetCategoryBySlug(data.categorySlug))) {
         await adminCreateCategory({
-          slug: result.row.data.categorySlug,
+          slug: data.categorySlug,
           name: {
-            th: slugToTitle(result.row.data.categorySlug),
-            en: slugToTitle(result.row.data.categorySlug),
+            th: slugToTitle(data.categorySlug),
+            en: slugToTitle(data.categorySlug),
           },
           description: { th: "", en: "" },
           sort_order: 999,
         });
       }
 
-      // Create/update product data (no images field)
-      const productData = {
-        slug: result.row.data.slug,
-        category_slug: result.row.data.categorySlug,
-        brand_slug: result.row.data.brandSlug,
-        name: {
-          th: result.row.data.nameTh,
-          en: result.row.data.nameEn,
-        },
-        short_description: {
-          th: result.row.data.shortDescriptionTh,
-          en: result.row.data.shortDescriptionEn,
-        },
-        description: {
-          th: result.row.data.descriptionTh,
-          en: result.row.data.descriptionEn,
-        },
-        specifications: result.row.data.parsedSpecifications || [],
-        features: result.row.data.parsedFeatures || [],
-        documents: [],
-        featured:
-          result.row.data.featured === "true" ||
-          result.row.data.featured === "1",
-        sort_order: result.row.data.sortOrder,
-      };
-
       // Check if exists (for update vs create)
-      const existing = await adminGetProductBySlug(result.row.data.slug);
+      const existing = await adminGetProductBySlug(data.slug);
 
       if (existing) {
         if (options.overwriteExisting) {
-          await adminUpdateProduct(result.row.data.slug, productData);
+          await adminUpdateProduct(data.slug, buildUpdate(data, existing));
           stats.updated++;
-          yield {
-            type: "success",
-            slug: result.row.data.slug,
-            action: "updated",
-          };
+          yield { type: "success", slug: data.slug, action: "updated" };
         } else {
           stats.skipped++;
           yield {
             type: "skipped",
-            slug: result.row.data.slug,
+            slug: data.slug,
             reason: "Already exists (overwrite disabled)",
           };
         }
       } else {
-        await adminCreateProduct({ ...productData, images: [] });
+        nextSortOrder ??= await getNextSortOrder("products");
+        await adminCreateProduct({
+          slug: data.slug,
+          category_slug: data.categorySlug,
+          brand_slug: data.brandSlug,
+          name: { th: data.nameTh, en: data.nameEn ?? "" },
+          short_description: {
+            th: data.shortDescriptionTh ?? "",
+            en: data.shortDescriptionEn ?? "",
+          },
+          description: { th: data.descriptionTh ?? "", en: data.descriptionEn ?? "" },
+          images: [],
+          specifications: data.parsedSpecifications ?? [],
+          features: data.parsedFeatures ?? [],
+          documents: [],
+          featured: parseFeatured(data.featured) === true,
+          sort_order: nextSortOrder,
+        });
+        nextSortOrder += 10;
         stats.created++;
-        yield {
-          type: "success",
-          slug: result.row.data.slug,
-          action: "created",
-        };
+        yield { type: "success", slug: data.slug, action: "created" };
       }
 
       // Progress update
@@ -146,13 +174,13 @@ export async function* importProducts(
         type: "progress",
         current: i + 1,
         total: validatedRows.length,
-        slug: result.row.data.slug,
+        slug: data.slug,
       };
     } catch (error) {
       stats.failed++;
       const errorMsg = error instanceof Error ? error.message : "Unknown error";
-      failures.push({ slug: result.row.data.slug, error: errorMsg });
-      yield { type: "error", slug: result.row.data.slug, error: errorMsg };
+      failures.push({ slug: data.slug, error: errorMsg });
+      yield { type: "error", slug: data.slug, error: errorMsg };
     }
   }
 

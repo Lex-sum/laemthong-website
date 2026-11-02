@@ -1,7 +1,7 @@
 "use server";
 
 import { requireAdmin } from "@/lib/auth";
-import { parseProductCSV, readCsvFile } from "@/lib/bulk-upload/csv-parser";
+import { CSV_COLUMNS, parseProductCSV, readCsvFile } from "@/lib/bulk-upload/csv-parser";
 import { validateProductRows } from "@/lib/bulk-upload/validator";
 import { adminGetProductsForExport, adminGetProductCount } from "@/lib/db/admin";
 import type {
@@ -14,6 +14,8 @@ export async function parseAndValidateAction(formData: FormData): Promise<{
   success: boolean;
   rows?: ClientValidationResult[];
   stats?: ValidationStats;
+  /** File-level notes: header columns that are ignored or left out */
+  notices?: string[];
   error?: string;
 }> {
   await requireAdmin();
@@ -24,7 +26,9 @@ export async function parseAndValidateAction(formData: FormData): Promise<{
       return { success: false, error: "A CSV file is required" };
     }
 
-    const parsedRows = parseProductCSV(await readCsvFile(csvFile));
+    const { rows: parsedRows, columns, ignoredColumns } = parseProductCSV(
+      await readCsvFile(csvFile)
+    );
     if (parsedRows.length === 0) {
       return { success: false, error: "CSV file is empty or invalid" };
     }
@@ -38,14 +42,28 @@ export async function parseAndValidateAction(formData: FormData): Promise<{
       errors: validated.filter((v) => v.status === "error").length,
     };
 
+    const notices: string[] = [];
+    if (ignoredColumns.includes("sort_order")) {
+      notices.push("Column sort_order is ignored — display order is set automatically (new products go last).");
+    }
+    const otherIgnored = ignoredColumns.filter((c) => c !== "sort_order");
+    if (otherIgnored.length > 0) {
+      notices.push(`Unknown column${otherIgnored.length > 1 ? "s" : ""} ignored: ${otherIgnored.join(", ")}. Check the spelling if you meant to import ${otherIgnored.length > 1 ? "them" : "it"}.`);
+    }
+    const leftOut = CSV_COLUMNS.filter((c) => !columns.includes(c));
+    if (leftOut.length > 0) {
+      notices.push(`Not in this file: ${leftOut.join(", ")}. Existing products keep their current values for these.`);
+    }
+
     const clientRows: ClientValidationResult[] = validated.map((v) => ({
       row: v.row,
+      action: v.action,
       status: v.status,
       errors: v.errors,
       warnings: v.warnings,
     }));
 
-    return { success: true, rows: clientRows, stats };
+    return { success: true, rows: clientRows, stats, notices };
   } catch (error) {
     return {
       success: false,
@@ -66,25 +84,7 @@ function csvEscapeRow(values: string[]): string {
     .join(",");
 }
 
-const CSV_HEADERS = [
-  "slug",
-  "category_slug",
-  "brand_slug",
-  "name_th",
-  "name_en",
-  "short_description_th",
-  "short_description_en",
-  "description_th",
-  "description_en",
-  "featured",
-  "sort_order",
-  "spec_labels_th",
-  "spec_labels_en",
-  "spec_values_th",
-  "spec_values_en",
-  "features_th",
-  "features_en",
-];
+const CSV_HEADERS = CSV_COLUMNS;
 
 export async function downloadTemplateAction(): Promise<{ csv: string }> {
   await requireAdmin();
@@ -100,7 +100,6 @@ export async function downloadTemplateAction(): Promise<{ csv: string }> {
     "คำอธิบายยาว",
     "Long description here",
     "false",
-    "1",
     "น้ำหนัก|แรงดันไฟฟ้า|กำลังไฟ",
     "Weight|Voltage|Power",
     "50 กก.|220V|3000 วัตต์",
@@ -120,7 +119,6 @@ export async function downloadTemplateAction(): Promise<{ csv: string }> {
     "รายละเอียดเต็ม",
     "Full details",
     "true",
-    "2",
     "",
     "",
     "",
@@ -162,7 +160,6 @@ export async function exportProductsAction(): Promise<{
       (p.description as { th: string; en: string }).th,
       (p.description as { th: string; en: string }).en,
       String(p.featured),
-      String(p.sort_order),
       specs.map((s) => s.label.th).join("|"),
       specs.map((s) => s.label.en).join("|"),
       specs.map((s) => s.value.th).join("|"),

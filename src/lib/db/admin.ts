@@ -267,6 +267,22 @@ export async function adminGetProductCount(): Promise<number> {
   return count ?? 0;
 }
 
+/** Every product slug (paged, for bulk import checks). */
+export async function adminGetAllProductSlugs(batchSize = 1000): Promise<string[]> {
+  const supabase = createSupabaseAdminClient();
+  const slugs: string[] = [];
+  for (let from = 0; ; from += batchSize) {
+    const { data, error } = await supabase
+      .from("products")
+      .select("slug")
+      .order("slug")
+      .range(from, from + batchSize - 1);
+    if (error) throw error;
+    slugs.push(...(data ?? []).map((row) => row.slug as string));
+    if (!data || data.length < batchSize) return slugs;
+  }
+}
+
 export async function adminGetProductsForExport(
   batchSize = 500
 ): Promise<DbProduct[]> {
@@ -281,6 +297,7 @@ export async function adminGetProductsForExport(
         "slug,category_slug,brand_slug,name,short_description,description,specifications,features,featured,sort_order"
       )
       .order("sort_order")
+      .order("slug")
       .range(from, from + batchSize - 1);
 
     if (error || !data || data.length === 0) break;

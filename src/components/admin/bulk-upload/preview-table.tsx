@@ -130,7 +130,7 @@ export function PreviewTable({
             <thead className="bg-muted">
               <tr>
                 <th className="px-4 py-3 text-left text-sm font-medium">
-                  Row
+                  Line
                 </th>
                 <th className="px-4 py-3 text-left text-sm font-medium">
                   Status
@@ -170,8 +170,11 @@ export function PreviewTable({
                       <XCircle className="h-5 w-5 text-red-600" />
                     )}
                   </td>
-                  <td className="px-4 py-3 text-sm font-mono max-w-[150px] truncate">
-                    {row.row.data.slug}
+                  <td className="px-4 py-3 text-sm max-w-[150px]">
+                    <div className="font-mono truncate">{row.row.data.slug}</div>
+                    <div className="text-xs text-muted-foreground">
+                      {row.action === "create" ? "New" : "Existing"}
+                    </div>
                   </td>
                   <td className="px-4 py-3 text-sm max-w-[180px] truncate">
                     {row.row.data.nameEn || row.row.data.nameTh}

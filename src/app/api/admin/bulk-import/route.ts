@@ -48,7 +48,13 @@ export async function POST(request: Request) {
     return Response.json({ error: "Failed to read CSV file" }, { status: 400 });
   }
 
-  const parsedRows = parseProductCSV(csvText);
+  let parsedRows;
+  try {
+    parsedRows = parseProductCSV(csvText).rows;
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : "Invalid CSV";
+    return Response.json({ error: msg }, { status: 400 });
+  }
   if (parsedRows.length === 0) {
     return Response.json({ error: "CSV is empty or invalid" }, { status: 400 });
   }
