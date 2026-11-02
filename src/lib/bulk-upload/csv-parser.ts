@@ -1,6 +1,20 @@
 import Papa from "papaparse";
 import type { ParsedProductRow, ParsedSpecification, ParsedFeature } from "./types";
 
+/**
+ * Reads an uploaded CSV as text. Our exports are UTF-8 (with BOM), but Excel's plain
+ * "CSV (Comma delimited)" save on Thai Windows writes TIS-620 / Windows-874, which
+ * would turn Thai into garbage if read as UTF-8 — so fall back to that encoding.
+ */
+export async function readCsvFile(file: File): Promise<string> {
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  try {
+    return new TextDecoder("utf-8", { fatal: true }).decode(bytes); // also drops a BOM
+  } catch {
+    return new TextDecoder("windows-874").decode(bytes);
+  }
+}
+
 function splitPipe(value: string): string[] {
   if (!value) return [];
   return value.split("|").map((s) => s.trim());

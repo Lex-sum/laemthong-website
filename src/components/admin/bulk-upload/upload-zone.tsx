@@ -59,7 +59,8 @@ export function UploadZone({ onFileSelected }: UploadZoneProps) {
   };
 
   const downloadCsv = (csv: string, filename: string) => {
-    const blob = new Blob([csv], { type: "text/csv" });
+    // UTF-8 BOM so Excel reads Thai correctly (without it Excel guesses the Windows codepage)
+    const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;

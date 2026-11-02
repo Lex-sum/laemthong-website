@@ -2,7 +2,7 @@ import { revalidatePath } from "next/cache";
 import { getAdminUser } from "@/lib/auth";
 import { mustChangePassword } from "@/lib/admin-roles";
 import { logActivity } from "@/lib/activity";
-import { parseProductCSV } from "@/lib/bulk-upload/csv-parser";
+import { parseProductCSV, readCsvFile } from "@/lib/bulk-upload/csv-parser";
 import { validateProductRows } from "@/lib/bulk-upload/validator";
 import { importProducts } from "@/lib/bulk-upload/importer";
 import type { ImportOptions } from "@/lib/bulk-upload/types";
@@ -43,7 +43,7 @@ export async function POST(request: Request) {
 
   let csvText: string;
   try {
-    csvText = await csvFile.text();
+    csvText = await readCsvFile(csvFile);
   } catch {
     return Response.json({ error: "Failed to read CSV file" }, { status: 400 });
   }

@@ -1,7 +1,7 @@
 "use server";
 
 import { requireAdmin } from "@/lib/auth";
-import { parseProductCSV } from "@/lib/bulk-upload/csv-parser";
+import { parseProductCSV, readCsvFile } from "@/lib/bulk-upload/csv-parser";
 import { validateProductRows } from "@/lib/bulk-upload/validator";
 import { adminGetProductsForExport, adminGetProductCount } from "@/lib/db/admin";
 import type {
@@ -24,7 +24,7 @@ export async function parseAndValidateAction(formData: FormData): Promise<{
       return { success: false, error: "A CSV file is required" };
     }
 
-    const parsedRows = parseProductCSV(await csvFile.text());
+    const parsedRows = parseProductCSV(await readCsvFile(csvFile));
     if (parsedRows.length === 0) {
       return { success: false, error: "CSV file is empty or invalid" };
     }
