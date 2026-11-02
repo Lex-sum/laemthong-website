@@ -35,19 +35,25 @@ export const CSV_COLUMNS = [
   "features_en",
 ] as const;
 
-export const REQUIRED_CSV_COLUMNS = ["slug", "category_slug", "brand_slug", "name_th"] as const;
+export const REQUIRED_CSV_COLUMNS = [
+  "slug",
+  "category_slug",
+  "brand_slug",
+  "name_th",
+  "short_description_th",
+] as const;
 
 const KNOWN = new Set<string>(CSV_COLUMNS);
 
-function splitPipe(value: string | undefined): string[] {
+export function splitPipe(value: string | undefined): string[] {
   if (!value) return [];
   return value.split("|").map((s) => s.trim());
 }
 
 /**
  * Parses a product CSV by header name: columns can be in any order and optional columns
- * can be left out. A missing column or a blank cell means "no value" — new products get
- * an empty field and existing products keep what they have.
+ * can be left out. A column that is not in the file is skipped (existing products keep
+ * their value); a column in the file sets the value, so a blank cell clears it.
  * Throws if a required column is missing from the header.
  */
 export function parseProductCSV(csvText: string): ParsedCsv {
@@ -75,7 +81,9 @@ export function parseProductCSV(csvText: string): ParsedCsv {
   const ignoredColumns = columns.filter((c) => !KNOWN.has(c));
 
   const rows: ParsedProductRow[] = result.data.map((row, index) => {
-    const cell = (column: string) => row[column]?.trim() || undefined;
+    // undefined = column not in the file (skip), "" = blank cell (clear)
+    const cell = (column: string) =>
+      columns.includes(column) ? (row[column]?.trim() ?? "") : undefined;
 
     const specLabelsTh = cell("spec_labels_th");
     const specLabelsEn = cell("spec_labels_en");
@@ -85,7 +93,7 @@ export function parseProductCSV(csvText: string): ParsedCsv {
     const featuresEn = cell("features_en");
 
     let parsedSpecifications: ParsedSpecification[] | undefined;
-    if (specLabelsTh || specLabelsEn || specValuesTh || specValuesEn) {
+    if ([specLabelsTh, specLabelsEn, specValuesTh, specValuesEn].some((v) => v !== undefined)) {
       const labelsThArr = splitPipe(specLabelsTh);
       const labelsEnArr = splitPipe(specLabelsEn);
       const valuesThArr = splitPipe(specValuesTh);
@@ -106,7 +114,7 @@ export function parseProductCSV(csvText: string): ParsedCsv {
     }
 
     let parsedFeatures: ParsedFeature[] | undefined;
-    if (featuresTh || featuresEn) {
+    if (featuresTh !== undefined || featuresEn !== undefined) {
       const featuresThArr = splitPipe(featuresTh);
       const featuresEnArr = splitPipe(featuresEn);
       const featureCount = Math.max(featuresThArr.length, featuresEnArr.length);
@@ -125,7 +133,7 @@ export function parseProductCSV(csvText: string): ParsedCsv {
         brandSlug: cell("brand_slug") ?? "",
         nameTh: cell("name_th") ?? "",
         nameEn: cell("name_en"),
-        shortDescriptionTh: cell("short_description_th"),
+        shortDescriptionTh: cell("short_description_th") ?? "",
         shortDescriptionEn: cell("short_description_en"),
         descriptionTh: cell("description_th"),
         descriptionEn: cell("description_en"),
@@ -145,10 +153,14 @@ export function parseProductCSV(csvText: string): ParsedCsv {
   return { rows, columns, ignoredColumns };
 }
 
-/** "true"/"1"/"yes" → true, "false"/"0"/"no" → false, blank → undefined, anything else → null. */
+/**
+ * Column not in file → undefined (skip); blank, "false"/"0"/"no" → false;
+ * "true"/"1"/"yes" → true; anything else → null (invalid).
+ */
 export function parseFeatured(value: string | undefined): boolean | undefined | null {
   if (value === undefined) return undefined;
   const v = value.toLowerCase();
+  if (v === "") return false;
   if (v === "true" || v === "1" || v === "yes") return true;
   if (v === "false" || v === "0" || v === "no") return false;
   return null;

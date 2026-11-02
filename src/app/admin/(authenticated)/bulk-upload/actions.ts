@@ -54,10 +54,15 @@ export async function parseAndValidateAction(formData: FormData): Promise<{
     if (leftOut.length > 0) {
       notices.push(`Not in this file: ${leftOut.join(", ")}. Existing products keep their current values for these.`);
     }
+    const clearing = validated.filter((v) => v.clears.length > 0).length;
+    if (clearing > 0) {
+      notices.push(`${clearing} existing product${clearing > 1 ? "s have" : " has"} blank cells that will clear current values (see "Will clear" below). Remove a column from the file to leave it unchanged.`);
+    }
 
     const clientRows: ClientValidationResult[] = validated.map((v) => ({
       row: v.row,
       action: v.action,
+      clears: v.clears,
       status: v.status,
       errors: v.errors,
       warnings: v.warnings,

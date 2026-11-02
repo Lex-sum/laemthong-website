@@ -267,20 +267,28 @@ export async function adminGetProductCount(): Promise<number> {
   return count ?? 0;
 }
 
-/** Every product slug (paged, for bulk import checks). */
-export async function adminGetAllProductSlugs(batchSize = 1000): Promise<string[]> {
+export type ProductImportSnapshot = Pick<
+  DbProduct,
+  "slug" | "name" | "short_description" | "description" | "specifications" | "features" | "featured"
+>;
+
+/** Current data of the given products (for bulk import checks); missing slugs are left out. */
+export async function adminGetProductsBySlugs(
+  slugs: string[],
+  chunkSize = 200
+): Promise<ProductImportSnapshot[]> {
   const supabase = createSupabaseAdminClient();
-  const slugs: string[] = [];
-  for (let from = 0; ; from += batchSize) {
+  const unique = [...new Set(slugs.filter(Boolean))];
+  const products: ProductImportSnapshot[] = [];
+  for (let i = 0; i < unique.length; i += chunkSize) {
     const { data, error } = await supabase
       .from("products")
-      .select("slug")
-      .order("slug")
-      .range(from, from + batchSize - 1);
+      .select("slug,name,short_description,description,specifications,features,featured")
+      .in("slug", unique.slice(i, i + chunkSize));
     if (error) throw error;
-    slugs.push(...(data ?? []).map((row) => row.slug as string));
-    if (!data || data.length < batchSize) return slugs;
+    products.push(...((data ?? []) as ProductImportSnapshot[]));
   }
+  return products;
 }
 
 export async function adminGetProductsForExport(

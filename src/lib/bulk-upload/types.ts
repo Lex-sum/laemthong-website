@@ -10,15 +10,15 @@ export type ParsedFeature = {
 
 export type ParsedProductRow = {
   index: number; // Line number in the CSV file (header is line 1)
-  // Optional fields are undefined when the column is missing or the cell is blank:
-  // new products get an empty value, existing products keep theirs.
+  // Optional fields: undefined = column not in the file (existing products keep their
+  // value), "" = blank cell (clears the value).
   data: {
     slug: string;
     categorySlug: string;
     brandSlug: string;
     nameTh: string;
     nameEn?: string;
-    shortDescriptionTh?: string;
+    shortDescriptionTh: string;
     shortDescriptionEn?: string;
     descriptionTh?: string;
     descriptionEn?: string;
@@ -50,6 +50,8 @@ export type ValidationResult = {
   row: ParsedProductRow;
   /** Whether the slug already exists (update) or is new (create) */
   action: "create" | "update";
+  /** Columns whose current non-empty value this row will erase (updates only) */
+  clears: string[];
   status: ValidationStatus;
   errors: string[];
   warnings: string[];
@@ -59,6 +61,8 @@ export type ClientValidationResult = {
   row: ParsedProductRow;
   /** Whether the slug already exists (update) or is new (create) */
   action: "create" | "update";
+  /** Columns whose current non-empty value this row will erase (updates only) */
+  clears: string[];
   status: ValidationStatus;
   errors: string[];
   warnings: string[];

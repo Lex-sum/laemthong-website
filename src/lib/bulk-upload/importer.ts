@@ -9,7 +9,7 @@ import {
 } from "@/lib/db/admin";
 import { getNextSortOrder } from "@/lib/db/sort-order";
 import type { DbProduct, LocalizedString } from "@/data/types";
-import { parseFeatured } from "./csv-parser";
+import { parseFeatured, splitPipe } from "./csv-parser";
 import type { ValidationResult, ImportOptions, ImportEvent, ParsedProductRow } from "./types";
 
 type Spec = { label: LocalizedString; value: LocalizedString };
@@ -21,40 +21,39 @@ function slugToTitle(slug: string): string {
     .join(" ");
 }
 
-/** CSV value if given, otherwise the current one (blank / missing cells never erase data). */
+/** Column not in the file → current value; column in the file → CSV value ("" clears). */
 function pick(value: string | undefined, current: string): string {
   return value ?? current;
 }
 
-/** Spec items from the CSV; a language left blank keeps the current text at the same position. */
-function mergeSpecs(parsed: Spec[], current: Spec[]): Spec[] {
-  return parsed.map((spec, i) => ({
-    label: {
-      th: spec.label.th || current[i]?.label.th || "",
-      en: spec.label.en || current[i]?.label.en || "",
-    },
-    value: {
-      th: spec.value.th || current[i]?.value.th || "",
-      en: spec.value.en || current[i]?.value.en || "",
-    },
-  }));
+/**
+ * Pipe-separated columns, item by item. A column that is in the file sets its part of every
+ * item (blank clears it); a column that isn't keeps the current text at the same position.
+ * The item count comes from the columns in the file, and also from the current list
+ * when some columns are not in the file (so their text is never dropped).
+ */
+function mergeList<T>(
+  columns: (string | undefined)[],
+  current: T[],
+  read: (item: T | undefined) => string[],
+  build: (parts: string[]) => T
+): T[] {
+  const lists = columns.map((column) => (column === undefined ? null : splitPipe(column)));
+  const keepsCurrent = lists.some((list) => list === null);
+  const count = Math.max(keepsCurrent ? current.length : 0, ...lists.map((list) => list?.length ?? 0));
+  return Array.from({ length: count }, (_, i) =>
+    build(lists.map((list, part) => (list ? list[i] ?? "" : read(current[i])[part] ?? "")))
+  );
 }
 
-function mergeFeatures(parsed: LocalizedString[], current: LocalizedString[]): LocalizedString[] {
-  return parsed.map((feature, i) => ({
-    th: feature.th || current[i]?.th || "",
-    en: feature.en || current[i]?.en || "",
-  }));
-}
-
-/** Only the fields the CSV fills in: name_th, category and brand are always present. */
+/** Only the columns in the file (slug, category, brand, name_th and short_description_th always are). */
 function buildUpdate(data: ParsedProductRow["data"], existing: DbProduct) {
   const update: Partial<Omit<DbProduct, "updated_at">> = {
     category_slug: data.categorySlug,
     brand_slug: data.brandSlug,
     name: { th: data.nameTh, en: pick(data.nameEn, existing.name.en) },
     short_description: {
-      th: pick(data.shortDescriptionTh, existing.short_description.th),
+      th: data.shortDescriptionTh,
       en: pick(data.shortDescriptionEn, existing.short_description.en),
     },
     description: {
@@ -64,11 +63,26 @@ function buildUpdate(data: ParsedProductRow["data"], existing: DbProduct) {
   };
   const featured = parseFeatured(data.featured);
   if (typeof featured === "boolean") update.featured = featured;
-  if (data.parsedSpecifications) {
-    update.specifications = mergeSpecs(data.parsedSpecifications, existing.specifications ?? []);
+  const specColumns = [data.specLabelsTh, data.specLabelsEn, data.specValuesTh, data.specValuesEn];
+  if (specColumns.some((column) => column !== undefined)) {
+    update.specifications = mergeList<Spec>(
+      specColumns,
+      existing.specifications ?? [],
+      (spec) => [spec?.label.th ?? "", spec?.label.en ?? "", spec?.value.th ?? "", spec?.value.en ?? ""],
+      ([labelTh, labelEn, valueTh, valueEn]) => ({
+        label: { th: labelTh, en: labelEn },
+        value: { th: valueTh, en: valueEn },
+      })
+    );
   }
-  if (data.parsedFeatures) {
-    update.features = mergeFeatures(data.parsedFeatures, existing.features ?? []);
+  const featureColumns = [data.featuresTh, data.featuresEn];
+  if (featureColumns.some((column) => column !== undefined)) {
+    update.features = mergeList<LocalizedString>(
+      featureColumns,
+      existing.features ?? [],
+      (feature) => [feature?.th ?? "", feature?.en ?? ""],
+      ([th, en]) => ({ th, en })
+    );
   }
   return update;
 }
@@ -153,7 +167,7 @@ export async function* importProducts(
           brand_slug: data.brandSlug,
           name: { th: data.nameTh, en: data.nameEn ?? "" },
           short_description: {
-            th: data.shortDescriptionTh ?? "",
+            th: data.shortDescriptionTh,
             en: data.shortDescriptionEn ?? "",
           },
           description: { th: data.descriptionTh ?? "", en: data.descriptionEn ?? "" },

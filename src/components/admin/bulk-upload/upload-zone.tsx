@@ -198,10 +198,23 @@ export function UploadZone({ onFileSelected }: UploadZoneProps) {
           <p className="font-medium text-foreground">How Columns Are Read</p>
           <p className="mt-1">
             Values are matched by the column name in the header row, so columns can be in any
-            order and optional columns can be left out. A missing column or a blank cell never
-            erases data: new products get an empty field and existing products keep their current
-            value. Display order is automatic &mdash; new products are added at the end of the list
-            (reorder them on the Products page).
+            order and optional columns can be left out.
+          </p>
+          <ul className="list-disc list-inside space-y-1 ml-2 mt-1">
+            <li>
+              <strong>Column not in the file</strong> &mdash; not changed (new products get an
+              empty field).
+            </li>
+            <li>
+              <strong>Column in the file</strong> &mdash; set to the cell value; a{" "}
+              <strong>blank cell clears</strong> the current value. The preview lists every value
+              that will be cleared before you import.
+            </li>
+          </ul>
+          <p className="mt-1">
+            To update only some fields, delete the other columns from the file. Display order is
+            automatic &mdash; new products are added at the end of the list (reorder them on the
+            Products page).
           </p>
         </div>
 
@@ -217,6 +230,8 @@ export function UploadZone({ onFileSelected }: UploadZoneProps) {
             brand_slug &mdash; Must exist or will be auto-created
             <br />
             name_th &mdash; Product name (Thai)
+            <br />
+            short_description_th &mdash; Short description (Thai), shown on product cards
           </div>
         </div>
 
@@ -225,15 +240,13 @@ export function UploadZone({ onFileSelected }: UploadZoneProps) {
             CSV Columns &mdash; Optional
           </p>
           <div className="mt-1 rounded border bg-muted/30 p-3 font-mono text-xs leading-relaxed">
-            short_description_th &mdash; Short description (Thai), shown on product cards
-            <br />
             name_en, short_description_en &mdash; English (without them the English site
             shows Thai and the product page stays out of Google until translated)
             <br />
             description_th, description_en &mdash; Long description (short description used
             if empty)
             <br />
-            featured &mdash; true/false, 1/0 or yes/no (new products default to false)
+            featured &mdash; true/false, 1/0 or yes/no (blank = false)
             <br />
             spec_labels_th, spec_labels_en &mdash; Pipe-separated spec labels
             <br />
@@ -249,7 +262,7 @@ export function UploadZone({ onFileSelected }: UploadZoneProps) {
             </code>
             . All spec columns must have the same number of items. Features must
             also match between Thai and English if both are provided. When updating, a language
-            left blank keeps its current text.
+            whose columns are not in the file keeps its current text.
           </p>
         </div>
 
