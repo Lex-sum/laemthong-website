@@ -32,6 +32,7 @@ export default async function SapProductsPage({ searchParams }: Props) {
     page: Math.max(1, Number(params.page) || 1),
     pageSize,
     search: typeof params.search === "string" ? params.search : undefined,
+    web: params.web === "on" || params.web === "off" ? params.web : undefined,
   });
 
   return (
@@ -45,6 +46,14 @@ export default async function SapProductsPage({ searchParams }: Props) {
           )}
         </p>
       </div>
+
+      {result.webFilterUnavailable && (
+        <div className="rounded-lg border border-amber-500/50 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:bg-amber-950 dark:text-amber-100">
+          The On website / Not on website filter needs a database update: run{" "}
+          <code className="rounded bg-amber-100 px-1 dark:bg-amber-900">supabase/migrations/20261102000000_admin_products_sap_view.sql</code>{" "}
+          in the Supabase SQL Editor.
+        </div>
+      )}
 
       <SapProductsTable
         items={result.items}

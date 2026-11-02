@@ -42,6 +42,17 @@ export function SapProductsTable({
   const [isPending, startTransition] = useTransition();
 
   const currentSearch = searchParams.get("search") ?? "";
+  const currentWeb = searchParams.get("web") ?? "";
+
+  const setWebFilter = (value: string) => {
+    const params = new URLSearchParams(searchParams.toString());
+    if (value) params.set("web", value);
+    else params.delete("web");
+    params.delete("page");
+    startTransition(() => {
+      router.replace(`${pathname}?${params.toString()}`);
+    });
+  };
   const [searchInput, setSearchInput] = useState(currentSearch);
 
   // Sync input when URL changes externally
@@ -72,11 +83,38 @@ export function SapProductsTable({
 
   return (
     <div className="space-y-4">
-      <TableSearchBar
-        query={searchInput}
-        onQueryChange={setSearchInput}
-        placeholder="Search item code or name..."
-      />
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="min-w-[220px] flex-1">
+          <TableSearchBar
+            query={searchInput}
+            onQueryChange={setSearchInput}
+            placeholder="Search item code or name..."
+          />
+        </div>
+        {/* Website match: a product exists whose slug is this item code */}
+        <div className="inline-flex rounded-md border p-0.5" role="group" aria-label="Filter by website">
+          {(
+            [
+              ["", "All"],
+              ["on", "On website"],
+              ["off", "Not on website"],
+            ] as const
+          ).map(([value, label]) => (
+            <button
+              key={label}
+              type="button"
+              onClick={() => setWebFilter(value)}
+              aria-pressed={currentWeb === value}
+              className={cn(
+                "rounded px-3 py-1 text-sm transition-colors",
+                currentWeb === value ? "bg-foreground text-background" : "text-muted-foreground hover:bg-muted"
+              )}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
 
       <div className={cn("rounded-xl border", isPending && "opacity-60")}>
         <Table>
@@ -92,15 +130,15 @@ export function SapProductsTable({
           </TableHeader>
           <TableBody>
             {items.length === 0 ? (
-              total === 0 && !currentSearch ? (
+              total === 0 && !currentSearch && !currentWeb ? (
                 <EmptyTableState
                   title="No SAP data yet"
                   description="Items appear here after the SAP B1 sync script pushes stock to /api/stock-sync"
                 />
               ) : (
                 <EmptyTableState
-                  title="No results for your search"
-                  description="Try a different item code or name"
+                  title="No matching items"
+                  description="Try a different item code, name or filter"
                 />
               )
             ) : (

@@ -573,6 +573,8 @@ export interface AdminSapStockQuery {
   page?: number;
   pageSize?: number;
   search?: string;
+  /** "on" = a product with this slug exists on the website, "off" = not yet. */
+  web?: "on" | "off";
 }
 
 export interface AdminSapStockResult {
@@ -582,6 +584,8 @@ export interface AdminSapStockResult {
   pageSize: number;
   totalPages: number;
   lastSyncedAt: string | null;
+  /** The website filter needs the admin_sap_stock_web view (migration not run yet). */
+  webFilterUnavailable?: boolean;
 }
 
 const SAP_STOCK_COLUMNS = "item_code, item_name, on_hand, available, synced_at";
@@ -589,10 +593,16 @@ const SAP_STOCK_COLUMNS = "item_code, item_name, on_hand, available, synced_at";
 export async function adminGetSapStock(
   query: AdminSapStockQuery = {}
 ): Promise<AdminSapStockResult> {
-  const { page = 1, pageSize = 20, search } = query;
+  const { page = 1, pageSize = 20, search, web } = query;
   const supabase = createSupabaseAdminClient();
 
-  let q = supabase.from("sap_stock").select(SAP_STOCK_COLUMNS, { count: "exact" });
+  // The website filter reads the admin_sap_stock_web view (sap_stock + on_web flag)
+  let q = web
+    ? supabase
+        .from("admin_sap_stock_web")
+        .select(SAP_STOCK_COLUMNS, { count: "exact" })
+        .eq("on_web", web === "on")
+    : supabase.from("sap_stock").select(SAP_STOCK_COLUMNS, { count: "exact" });
 
   if (search) {
     const term = `%${search}%`;
@@ -613,7 +623,15 @@ export async function adminGetSapStock(
   ]);
 
   if (error) {
-    return { items: [], total: 0, page, pageSize, totalPages: 0, lastSyncedAt: null };
+    return {
+      items: [],
+      total: 0,
+      page,
+      pageSize,
+      totalPages: 0,
+      lastSyncedAt: latest?.synced_at ?? null,
+      webFilterUnavailable: !!web,
+    };
   }
 
   const rows = data as SapStockRow[];
