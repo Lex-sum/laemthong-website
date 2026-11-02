@@ -43,6 +43,7 @@ import { useSortableTable } from "@/hooks/use-sortable-table";
 import { useScrolled } from "@/hooks/use-scrolled";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { MAX_PRODUCT_IMAGES } from "@/lib/constants";
 import type { DbProduct } from "@/data/types";
 
 interface ProductsTableProps {
@@ -89,7 +90,8 @@ export function ProductsTable({
   const isFiltering = !!(
     searchParams.get("search") ||
     searchParams.get("category") ||
-    searchParams.get("brand")
+    searchParams.get("brand") ||
+    searchParams.get("overImageLimit")
   );
   const canReorder = !isFiltering;
 
@@ -263,6 +265,14 @@ export function ProductsTable({
                           <span className="text-xs text-muted-foreground tabular-nums shrink-0">
                             #{product.sort_order}
                           </span>
+                          {product.images.length > MAX_PRODUCT_IMAGES && (
+                            <span
+                              className="shrink-0 rounded border border-amber-500/60 px-1.5 text-xs text-amber-700 dark:text-amber-300"
+                              title={`More than the ${MAX_PRODUCT_IMAGES}-image limit`}
+                            >
+                              {product.images.length}/{MAX_PRODUCT_IMAGES} images
+                            </span>
+                          )}
                           {product.featured && (
                             <span className="inline-flex items-center gap-1 text-xs text-primary shrink-0">
                               <span className="h-1.5 w-1.5 rounded-full bg-primary" />

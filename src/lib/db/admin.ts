@@ -2,6 +2,7 @@ import { createSupabaseAdminClient } from "@/lib/supabase";
 import { getRole, mustChangePassword, type AdminRole } from "@/lib/admin-roles";
 import { SERVICE_COLUMNS } from "@/lib/db/services";
 import { INQUIRY_STATUSES, type InquiryStatus } from "@/lib/inquiry-status";
+import { MAX_PRODUCT_IMAGES } from "@/lib/constants";
 import type {
   DbBrand,
   DbCategory,
@@ -134,6 +135,8 @@ export interface AdminProductsQuery {
   search?: string;
   category?: string;
   brand?: string;
+  /** Only products with more images than MAX_PRODUCT_IMAGES (after the limit is lowered). */
+  overImageLimit?: boolean;
 }
 
 export interface AdminProductsResult {
@@ -153,10 +156,13 @@ export async function adminGetProducts(
     search,
     category,
     brand,
+    overImageLimit,
   } = query;
 
   const supabase = createSupabaseAdminClient();
   let q = supabase.from("products").select("*", { count: "exact" });
+
+  if (overImageLimit) q = q.not(OVER_IMAGE_LIMIT_PATH, "is", null);
 
   // Search across name (en/th) and slug
   if (search) {
@@ -190,6 +196,23 @@ export async function adminGetProducts(
     pageSize,
     totalPages: Math.ceil(total / pageSize),
   };
+}
+
+/**
+ * `images` is a jsonb array: an element at index MAX_PRODUCT_IMAGES exists only when the
+ * product has more images than the limit — a cheap filter without a migration.
+ */
+const OVER_IMAGE_LIMIT_PATH = `images->>${MAX_PRODUCT_IMAGES}`;
+
+/** Products with more images than the current limit (e.g. after it was lowered). */
+export async function adminCountProductsOverImageLimit(): Promise<number> {
+  const supabase = createSupabaseAdminClient();
+  const { count, error } = await supabase
+    .from("products")
+    .select("slug", { count: "exact", head: true })
+    .not(OVER_IMAGE_LIMIT_PATH, "is", null);
+  if (error) return 0;
+  return count ?? 0;
 }
 
 export async function adminGetProductCount(): Promise<number> {

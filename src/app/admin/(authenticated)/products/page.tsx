@@ -4,10 +4,12 @@ import {
   adminGetProducts,
   adminGetAllBrands,
   adminGetAllCategories,
+  adminCountProductsOverImageLimit,
   type AdminProductsQuery,
 } from "@/lib/db/admin";
 import { Button } from "@/components/ui/button";
-import { Plus, Upload } from "lucide-react";
+import { AlertTriangle, Plus, Upload } from "lucide-react";
+import { MAX_PRODUCT_IMAGES } from "@/lib/constants";
 import { ProductsTable } from "@/components/admin/products-table";
 
 export const metadata: Metadata = {
@@ -31,12 +33,14 @@ export default async function AdminProductsPage({ searchParams }: Props) {
     search: typeof params.search === "string" ? params.search : undefined,
     category: typeof params.category === "string" ? params.category : undefined,
     brand: typeof params.brand === "string" ? params.brand : undefined,
+    overImageLimit: params.overImageLimit === "1",
   };
 
-  const [result, brands, categories] = await Promise.all([
+  const [result, brands, categories, overLimitCount] = await Promise.all([
     adminGetProducts(query),
     adminGetAllBrands(),
     adminGetAllCategories(),
+    adminCountProductsOverImageLimit(),
   ]);
 
   const brandEntries: [string, string][] = brands.map((b) => [b.slug, b.name]);
@@ -69,6 +73,27 @@ export default async function AdminProductsPage({ searchParams }: Props) {
           </Button>
         </div>
       </div>
+
+      {/* Shown when the image limit was lowered below what some products already have */}
+      {(overLimitCount > 0 || query.overImageLimit) && (
+        <div className="flex flex-wrap items-center gap-3 rounded-lg border border-amber-500/50 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:bg-amber-950 dark:text-amber-100">
+          <AlertTriangle className="h-4 w-4 shrink-0" />
+          <span className="flex-1">
+            {overLimitCount} product{overLimitCount === 1 ? " has" : "s have"} more than {MAX_PRODUCT_IMAGES} images
+            (the current limit). Their images still show on the website, but new images can&apos;t be
+            added until some are removed.
+          </span>
+          {query.overImageLimit ? (
+            <Link href="/admin/products" className="font-medium underline underline-offset-2">
+              Show all products
+            </Link>
+          ) : (
+            <Link href="/admin/products?overImageLimit=1" className="font-medium underline underline-offset-2">
+              Show them
+            </Link>
+          )}
+        </div>
+      )}
 
       <ProductsTable
         products={result.products}

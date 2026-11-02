@@ -4,7 +4,8 @@ import { useActionState, useEffect, useState, useMemo } from "react";
 import { Label } from "@/components/ui/label";
 import { FormErrorAlert } from "./form-error-alert";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { CheckCircle2, AlertCircle, Circle } from "lucide-react";
+import { CheckCircle2, AlertCircle, AlertTriangle, Circle } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { ImageUpload } from "./image-upload";
 import { BilingualTextarea } from "./bilingual-textarea";
 import { ProductSpecificationsSection } from "./product-specifications-section";
@@ -239,9 +240,21 @@ export function ProductForm({ product, brands, categories, defaults, sapInfo }: 
             <div>
               <Label>Product Images (Optional)</Label>
               <p className="text-xs text-muted-foreground mt-1">
-                Upload product photos. First image is used as the thumbnail. Drag to reorder. Maximum 10 images.
+                Upload product photos. First image is used as the thumbnail. Drag to reorder. Maximum{" "}
+                {MAX_PRODUCT_IMAGES} images.
               </p>
             </div>
+            {images.length > MAX_PRODUCT_IMAGES && (
+              // The limit can be lowered later; existing images stay and still show on the site
+              <Alert className="border-amber-500/50 bg-amber-50 text-amber-900 dark:bg-amber-950 dark:text-amber-100">
+                <AlertTriangle className="h-4 w-4" />
+                <AlertDescription className="text-amber-900 dark:text-amber-100">
+                  This product has {images.length} images, more than the current limit of {MAX_PRODUCT_IMAGES}.
+                  All of them still show on the website, and you can save other changes. To add new images,
+                  remove at least {images.length - MAX_PRODUCT_IMAGES + 1}.
+                </AlertDescription>
+              </Alert>
+            )}
             <ImageUpload
               label=""
               value={images}
