@@ -35,6 +35,7 @@ export default async function AdminProductsPage({ searchParams }: Props) {
     brand: typeof params.brand === "string" ? params.brand : undefined,
     overImageLimit: params.overImageLimit === "1",
     sap: params.sap === "in" || params.sap === "out" ? params.sap : undefined,
+    missingEnglish: params.lang === "th-only",
   };
 
   const [result, brands, categories, overLimitCount] = await Promise.all([

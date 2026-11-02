@@ -1,5 +1,6 @@
 import { createSupabaseClient } from "@/lib/supabase";
 import type { Product, ProductListItem, DbProduct, Locale } from "@/data/types";
+import { fillDescription, fillEnglish, hasEnglish } from "@/lib/product-locale";
 
 const LISTING_COLUMNS = "slug, category_slug, brand_slug, name, short_description, images, featured, sort_order" as const;
 
@@ -20,20 +21,27 @@ export type PaginatedProducts = {
   totalPages: number;
 };
 
+// English is optional for products: empty English falls back to Thai, and an empty
+// long description falls back to the short description (see lib/product-locale).
 function toProduct(row: DbProduct): Product {
+  const shortDescription = fillEnglish(row.short_description);
   return {
     slug: row.slug,
     categorySlug: row.category_slug,
     brandSlug: row.brand_slug,
-    name: row.name,
-    shortDescription: row.short_description,
-    description: row.description,
+    name: fillEnglish(row.name),
+    shortDescription,
+    description: fillDescription(row.description, shortDescription),
     images: row.images ?? [],
-    specifications: row.specifications,
-    features: row.features,
+    specifications: (row.specifications ?? []).map((spec) => ({
+      label: fillEnglish(spec.label),
+      value: fillEnglish(spec.value),
+    })),
+    features: (row.features ?? []).map(fillEnglish),
     documents: row.documents,
     featured: row.featured,
     sortOrder: row.sort_order,
+    hasEnglish: hasEnglish(row),
   };
 }
 
@@ -42,11 +50,12 @@ function toProductListItem(row: Pick<DbProduct, "slug" | "category_slug" | "bran
     slug: row.slug,
     categorySlug: row.category_slug,
     brandSlug: row.brand_slug,
-    name: row.name,
-    shortDescription: row.short_description,
+    name: fillEnglish(row.name),
+    shortDescription: fillEnglish(row.short_description),
     images: row.images ?? [],
     featured: row.featured,
     sortOrder: row.sort_order,
+    hasEnglish: hasEnglish(row),
   };
 }
 
@@ -165,15 +174,16 @@ export async function getAllProductSlugs(): Promise<string[]> {
 }
 
 export async function getProductSlugsWithDates(): Promise<
-  { slug: string; updatedAt: string }[]
+  { slug: string; updatedAt: string; hasEnglish: boolean }[]
 > {
   const supabase = createSupabaseClient();
   const { data, error } = await supabase
     .from("products")
-    .select("slug, updated_at");
+    .select("slug, updated_at, name, short_description");
   if (error) return [];
   return data.map((row) => ({
     slug: row.slug,
     updatedAt: row.updated_at,
+    hasEnglish: hasEnglish(row),
   }));
 }

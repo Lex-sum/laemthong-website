@@ -42,12 +42,16 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const title = product.name[loc];
   const description = product.shortDescription[loc];
   const pageUrl = getPageUrl(loc, `/products/${slug}`);
+  // Untranslated product: its English page only repeats the Thai text, so keep it out of
+  // search results and point search engines to the Thai page instead.
+  const untranslatedEnglish = loc === "en" && !product.hasEnglish;
   return {
     title,
     description,
+    ...(untranslatedEnglish ? { robots: { index: false, follow: true } } : {}),
     alternates: {
-      canonical: pageUrl,
-      languages: getAlternateLanguages(`/products/${slug}`),
+      canonical: untranslatedEnglish ? getPageUrl("th", `/products/${slug}`) : pageUrl,
+      languages: getAlternateLanguages(`/products/${slug}`, { en: product.hasEnglish }),
     },
     openGraph: {
       title,

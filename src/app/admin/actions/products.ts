@@ -102,7 +102,7 @@ export async function createProductAction(
   }
 
   revalidateEntity("/admin/products");
-  await logActivity(user, { action: "create", entity: "product", entityId: slug, summary: `Created product "${validated.data.nameEn}"` });
+  await logActivity(user, { action: "create", entity: "product", entityId: slug, summary: `Created product "${validated.data.nameEn || validated.data.nameTh}"` });
   redirect("/admin/products");
 }
 
@@ -198,7 +198,7 @@ export async function updateProductAction(
   await deleteImagesByUrl(existing.images.filter((url) => !images.includes(url)));
 
   revalidateEntity("/admin/products");
-  await logActivity(user, { action: "update", entity: "product", entityId: slug, summary: `Updated product "${validated.data.nameEn}"` });
+  await logActivity(user, { action: "update", entity: "product", entityId: slug, summary: `Updated product "${validated.data.nameEn || validated.data.nameTh}"` });
   redirect("/admin/products");
 }
 

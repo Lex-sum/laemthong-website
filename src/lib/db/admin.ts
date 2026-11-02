@@ -139,6 +139,8 @@ export interface AdminProductsQuery {
   overImageLimit?: boolean;
   /** "in" = slug matches a SAP B1 item code, "out" = no SAP match. */
   sap?: "in" | "out";
+  /** Only products still missing their English name or short description. */
+  missingEnglish?: boolean;
 }
 
 export interface AdminProductsResult {
@@ -164,6 +166,7 @@ export async function adminGetProducts(
     brand,
     overImageLimit,
     sap,
+    missingEnglish,
   } = query;
 
   const supabase = createSupabaseAdminClient();
@@ -173,6 +176,10 @@ export async function adminGetProducts(
     : supabase.from("products").select("*", { count: "exact" });
 
   if (overImageLimit) q = q.not(OVER_IMAGE_LIMIT_PATH, "is", null);
+  // English optional: empty or missing name.en / short_description.en
+  if (missingEnglish) {
+    q = q.or("name->>en.eq.,name->>en.is.null,short_description->>en.eq.,short_description->>en.is.null");
+  }
 
   // Search across name (en/th) and slug
   if (search) {

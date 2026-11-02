@@ -41,7 +41,9 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       });
     }
 
-    for (const { slug, updatedAt } of productData) {
+    for (const { slug, updatedAt, hasEnglish } of productData) {
+      // Untranslated products have no real English page (it's noindex) — list Thai only
+      if (locale === "en" && !hasEnglish) continue;
       urls.push({
         url: `${baseUrl}/${locale}/products/${slug}`,
         lastModified: new Date(updatedAt),

@@ -38,12 +38,12 @@ export default async function EditProductPage({ params }: Props) {
           <AdminBreadcrumb
             items={[
               { label: "Products", href: "/admin/products" },
-              { label: `Edit "${product.name.en}"` },
+              { label: `Edit "${product.name.en || product.name.th}"` },
             ]}
           />
           <div className="mt-2">
             <AdminPageTitle
-              title={`Edit ${product.name.en}`}
+              title={`Edit ${product.name.en || product.name.th}`}
               description="Update product details."
             />
           </div>

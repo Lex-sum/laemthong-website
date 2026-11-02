@@ -130,7 +130,8 @@ export function ProductForm({ product, brands, categories, defaults, sapInfo }: 
     const hasDescriptionError = descriptionErrors.some(field => errors[field]);
 
     const isBasicComplete = categorySlug && brandSlug;
-    const isDescriptionComplete = descriptionTh.trim().length > 0 && descriptionEn.trim().length > 0;
+    // Optional section: mark it done once there is a Thai description
+    const isDescriptionComplete = descriptionTh.trim().length > 0;
     const isImagesAdded = images.length > 0;
     const isDetailsAdded = specifications.length > 0 || features.length > 0 || documents.length > 0;
 
@@ -140,7 +141,7 @@ export function ProductForm({ product, brands, categories, defaults, sapInfo }: 
       images: isImagesAdded ? 'complete' : 'incomplete',
       details: isDetailsAdded ? 'complete' : 'incomplete',
     };
-  }, [state.errors, categorySlug, brandSlug, descriptionTh, descriptionEn, images, specifications, features, documents]);
+  }, [state.errors, categorySlug, brandSlug, descriptionTh, images, specifications, features, documents]);
 
   const getTabIcon = (status: TabStatus) => {
     if (status === 'complete') {
@@ -224,11 +225,11 @@ export function ProductForm({ product, brands, categories, defaults, sapInfo }: 
             nameEn="descriptionEn"
             defaultValueTh={product?.description.th}
             defaultValueEn={product?.description.en}
-            required
+            optionalEn
             rows={10}
             errorTh={state.errors?.descriptionTh?.[0]}
             errorEn={state.errors?.descriptionEn?.[0]}
-            helperText="Detailed product information for the product detail page"
+            helperText="Optional. Shown on the product page; if empty, the short description is used instead."
             onChangeTh={setDescriptionTh}
             onChangeEn={setDescriptionEn}
           />

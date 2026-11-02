@@ -32,6 +32,7 @@ export function ProductsTableToolbar({
   const currentCategory = searchParams.get("category") ?? "";
   const currentBrand = searchParams.get("brand") ?? "";
   const currentSap = searchParams.get("sap") ?? "";
+  const currentLang = searchParams.get("lang") ?? "";
 
   const [searchInput, setSearchInput] = useState(currentSearch);
 
@@ -69,7 +70,7 @@ export function ProductsTableToolbar({
     return () => clearTimeout(timer);
   }, [searchInput, currentSearch, updateParams]);
 
-  const hasFilters = currentSearch || currentCategory || currentBrand || currentSap;
+  const hasFilters = currentSearch || currentCategory || currentBrand || currentSap || currentLang;
 
   const clearFilters = () => {
     setSearchInput("");
@@ -149,6 +150,19 @@ export function ProductsTableToolbar({
           </button>
         ))}
       </div>
+
+      {/* English is optional — find products still to translate */}
+      <button
+        type="button"
+        onClick={() => updateParams({ lang: currentLang ? null : "th-only" })}
+        aria-pressed={!!currentLang}
+        className={cn(
+          "rounded-md border px-3 py-1.5 text-sm transition-colors",
+          currentLang ? "border-foreground bg-foreground text-background" : "text-muted-foreground hover:bg-muted"
+        )}
+      >
+        Missing English
+      </button>
 
       {hasFilters && (
         <Button

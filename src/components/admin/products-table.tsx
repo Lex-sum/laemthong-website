@@ -44,6 +44,7 @@ import { useScrolled } from "@/hooks/use-scrolled";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { MAX_PRODUCT_IMAGES } from "@/lib/constants";
+import { hasEnglish } from "@/lib/product-locale";
 import type { DbProduct } from "@/data/types";
 
 interface ProductsTableProps {
@@ -96,7 +97,8 @@ export function ProductsTable({
     searchParams.get("category") ||
     searchParams.get("brand") ||
     searchParams.get("overImageLimit") ||
-    searchParams.get("sap")
+    searchParams.get("sap") ||
+    searchParams.get("lang")
   );
   const canReorder = !isFiltering;
 
@@ -255,18 +257,26 @@ export function ProductsTable({
                         <Checkbox
                           checked={selectedSlugs.has(product.slug)}
                           onCheckedChange={() => toggleSelect(product.slug)}
-                          aria-label={`Select ${product.name.en}`}
+                          aria-label={`Select ${product.name.en || product.name.th}`}
                         />
                       </TableCell>
                       <TableCell>
                         <TableThumbnail
                           src={product.images[0]}
-                          alt={product.name.en}
+                          alt={product.name.en || product.name.th}
                         />
                       </TableCell>
                       <TableCell className="max-w-[200px]">
                         <div className="flex items-center gap-2 min-w-0">
-                          <span className="font-medium truncate">{product.name.en}</span>
+                          <span className="font-medium truncate">{product.name.en || product.name.th}</span>
+                          {!hasEnglish(product) && (
+                            <span
+                              className="shrink-0 rounded border px-1.5 text-xs text-muted-foreground"
+                              title="No English name / short description yet — the English site shows Thai and hides this page from Google"
+                            >
+                              TH only
+                            </span>
+                          )}
                           <span className="text-xs text-muted-foreground tabular-nums shrink-0">
                             #{product.sort_order}
                           </span>
@@ -315,7 +325,7 @@ export function ProductsTable({
                                 </Link>
                               </Button>
                               <DeleteDialog
-                                title={`Delete "${product.name.en}"?`}
+                                title={`Delete "${product.name.en || product.name.th}"?`}
                                 description="This action cannot be undone."
                                 onDelete={deleteProductAction.bind(null, product.slug)}
                               />

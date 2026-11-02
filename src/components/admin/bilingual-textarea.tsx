@@ -10,6 +10,8 @@ interface BilingualTextareaProps {
   defaultValueTh?: string;
   defaultValueEn?: string;
   required?: boolean;
+  /** English may be left empty (only the Thai field is required). */
+  optionalEn?: boolean;
   errorTh?: string;
   errorEn?: string;
   rows?: number;
@@ -25,6 +27,7 @@ export function BilingualTextarea({
   defaultValueTh,
   defaultValueEn,
   required,
+  optionalEn = false,
   errorTh,
   errorEn,
   rows = 4,
@@ -56,12 +59,12 @@ export function BilingualTextarea({
           )}
         </div>
         <div>
-          <div className="mb-0.5 text-xs text-muted-foreground">EN</div>
+          <div className="mb-0.5 text-xs text-muted-foreground">EN{optionalEn && " (optional)"}</div>
           <Textarea
             name={nameEn}
             defaultValue={defaultValueEn}
-            placeholder={`${label} (English)`}
-            required={required}
+            placeholder={`${label} (English)${optionalEn ? " — optional" : ""}`}
+            required={required && !optionalEn}
             rows={rows}
             onChange={onChangeEn ? (e) => onChangeEn(e.target.value) : undefined}
           />

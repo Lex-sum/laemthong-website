@@ -27,10 +27,14 @@ export function getPageUrl(locale: Locale, path: string = ""): string {
   return `${SITE_URL}/${locale}${path}`;
 }
 
-export function getAlternateLanguages(path: string): Record<string, string> {
+/** hreflang links. Pass `{ en: false }` for pages with no English version (e.g. untranslated products). */
+export function getAlternateLanguages(
+  path: string,
+  { en = true }: { en?: boolean } = {}
+): Record<string, string> {
   return {
     th: `${SITE_URL}/th${path}`,
-    en: `${SITE_URL}/en${path}`,
+    ...(en ? { en: `${SITE_URL}/en${path}` } : {}),
     "x-default": `${SITE_URL}/th${path}`,
   };
 }

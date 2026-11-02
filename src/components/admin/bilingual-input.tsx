@@ -10,6 +10,8 @@ interface BilingualInputProps {
   defaultValueTh?: string;
   defaultValueEn?: string;
   required?: boolean;
+  /** English may be left empty (only the Thai field is required). */
+  optionalEn?: boolean;
   errorTh?: string;
   errorEn?: string;
   onChangeEn?: (value: string) => void;
@@ -23,6 +25,7 @@ export function BilingualInput({
   defaultValueTh,
   defaultValueEn,
   required,
+  optionalEn = false,
   errorTh,
   errorEn,
   onChangeEn,
@@ -50,12 +53,12 @@ export function BilingualInput({
           )}
         </div>
         <div>
-          <div className="mb-0.5 text-xs text-muted-foreground">EN</div>
+          <div className="mb-0.5 text-xs text-muted-foreground">EN{optionalEn && " (optional)"}</div>
           <Input
             name={nameEn}
             defaultValue={defaultValueEn}
-            placeholder={`${label} (English)`}
-            required={required}
+            placeholder={`${label} (English)${optionalEn ? " — optional" : ""}`}
+            required={required && !optionalEn}
             onChange={onChangeEn ? (e) => onChangeEn(e.target.value) : undefined}
           />
           {errorEn && (

@@ -84,10 +84,11 @@ export function ProductBasicInfoTab({
         defaultValueTh={product?.name.th}
         defaultValueEn={product?.name.en}
         required
+        optionalEn
         errorTh={errors?.nameTh?.[0]}
         errorEn={errors?.nameEn?.[0]}
         onChangeEn={handleNameChange}
-        helperText="The display name of the product in both languages"
+        helperText="Thai is required. English is optional — without it the English site shows the Thai text and keeps the page out of Google until translated."
       />
 
       {isEditing && product ? (
@@ -108,7 +109,7 @@ export function ProductBasicInfoTab({
           onToggleCustom={onToggleCustomSlug}
           slug={slug}
           onSlugChange={onSlugChange}
-          tooltipText='The URL-friendly version of the name, used in the page address (/products/your-slug). Use the SAP item code for products sold from SAP. It cannot be changed after the product is created.'
+          tooltipText='The URL-friendly version of the name, used in the page address (/products/your-slug). Use the SAP item code for products sold from SAP. Auto-filled from the English name — if there is no English name, type the slug yourself. It cannot be changed after the product is created.'
           error={errors?.slug?.[0]}
         />
       )}
@@ -122,10 +123,11 @@ export function ProductBasicInfoTab({
         defaultValueTh={product?.short_description.th ?? defaultShortDescription}
         defaultValueEn={product?.short_description.en ?? defaultShortDescription}
         required
+        optionalEn
         rows={2}
         errorTh={errors?.shortDescriptionTh?.[0]}
         errorEn={errors?.shortDescriptionEn?.[0]}
-        helperText="Brief summary shown in product cards (1-2 sentences)"
+        helperText="Brief summary shown in product cards (1-2 sentences). Thai is required, English optional."
       />
 
       <div className="grid gap-4 sm:grid-cols-2">

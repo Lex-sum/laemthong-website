@@ -201,11 +201,9 @@ export function UploadZone({ onFileSelected }: UploadZoneProps) {
           <div className="mt-1 rounded border bg-muted/30 p-3 font-mono text-xs leading-relaxed">
             slug &mdash; Unique ID (lowercase letters, numbers, dashes only)
             <br />
-            name_th, name_en &mdash; Product name
+            name_th &mdash; Product name (Thai)
             <br />
-            short_description_th, short_description_en
-            <br />
-            description_th, description_en
+            short_description_th &mdash; Short description (Thai)
             <br />
             category_slug &mdash; Must exist or will be auto-created
             <br />
@@ -218,6 +216,12 @@ export function UploadZone({ onFileSelected }: UploadZoneProps) {
             CSV Columns &mdash; Optional
           </p>
           <div className="mt-1 rounded border bg-muted/30 p-3 font-mono text-xs leading-relaxed">
+            name_en, short_description_en &mdash; English (without them the English site
+            shows Thai and the product page stays out of Google until translated)
+            <br />
+            description_th, description_en &mdash; Long description (short description used
+            if empty)
+            <br />
             featured &mdash; &quot;true&quot; or &quot;1&quot; to feature
             (default: false)
             <br />

@@ -14,6 +14,8 @@ export interface ProductListItem {
   images: string[];
   featured: boolean;
   sortOrder: number;
+  /** English name + short description were entered (otherwise EN shows the Thai text). */
+  hasEnglish: boolean;
 }
 
 export interface Product extends ProductListItem {
