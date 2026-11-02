@@ -1,3 +1,5 @@
+import type { ProductImportSnapshot } from "@/lib/db/admin";
+
 export type ParsedSpecification = {
   label: { th: string; en: string };
   value: { th: string; en: string };
@@ -48,6 +50,8 @@ export type ValidationStatus = "valid" | "warning" | "error";
 
 export type ValidationResult = {
   row: ParsedProductRow;
+  /** Current data of an existing product (server only — not sent to the browser) */
+  current?: ProductImportSnapshot;
   /** Whether the slug already exists (update) or is new (create) */
   action: "create" | "update";
   /** Columns whose current non-empty value this row will erase (updates only) */

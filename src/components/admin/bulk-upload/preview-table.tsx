@@ -34,7 +34,11 @@ export function PreviewTable({
   const [filter, setFilter] = useState<
     "all" | "valid" | "warnings" | "errors"
   >("all");
-  const [overwriteExisting, setOverwriteExisting] = useState(false);
+  // Rows that can be imported (rows with errors are always skipped)
+  const newCount = rows.filter((r) => r.status !== "error" && r.action === "create").length;
+  const existingCount = rows.filter((r) => r.status !== "error" && r.action === "update").length;
+  // A file of only existing products is an update — start with overwrite on
+  const [overwriteExisting, setOverwriteExisting] = useState(newCount === 0 && existingCount > 0);
   const [skipErrors, setSkipErrors] = useState(true);
   const [page, setPage] = useState(1);
 
@@ -51,9 +55,13 @@ export function PreviewTable({
   const endIndex = startIndex + ROWS_PER_PAGE;
   const paginatedRows = filteredRows.slice(startIndex, endIndex);
 
-  const canImport = stats.errors === 0 || skipErrors;
-  const importCount =
-    skipErrors ? stats.valid + stats.warnings : stats.total;
+  const importCount = newCount + (overwriteExisting ? existingCount : 0);
+  const canImport = (stats.errors === 0 || skipErrors) && importCount > 0;
+  const importLabel = overwriteExisting
+    ? [newCount > 0 && `${newCount} new`, existingCount > 0 && `${existingCount} update${existingCount > 1 ? "s" : ""}`]
+        .filter(Boolean)
+        .join(" + ") || "0 products"
+    : `${newCount} new product${newCount === 1 ? "" : "s"}`;
 
   return (
     <div className="space-y-6">
@@ -212,20 +220,36 @@ export function PreviewTable({
                         )}
                       </div>
                     )}
-                    {row.warnings.length > 0 && (
-                      <div className="space-y-1">
-                        {row.warnings.slice(0, 2).map((warning, i) => (
-                          <p key={i} className="text-yellow-600 text-xs">
-                            {warning}
-                          </p>
-                        ))}
-                        {row.warnings.length > 2 && (
-                          <p className="text-xs text-muted-foreground">
-                            +{row.warnings.length - 2} more
-                          </p>
-                        )}
-                      </div>
-                    )}
+                    {(() => {
+                      // Existing products are skipped (and nothing is cleared) while overwrite is off
+                      const skipped = row.action === "update" && !overwriteExisting;
+                      const warnings = skipped
+                        ? row.warnings.filter((w) => !w.startsWith("Will clear:"))
+                        : row.warnings;
+                      return (
+                        <>
+                          {skipped && row.status !== "error" && (
+                            <p className="text-xs text-muted-foreground">
+                              Skipped — turn on Overwrite to update
+                            </p>
+                          )}
+                          {warnings.length > 0 && (
+                            <div className="space-y-1">
+                              {warnings.slice(0, 2).map((warning, i) => (
+                                <p key={i} className="text-yellow-600 text-xs">
+                                  {warning}
+                                </p>
+                              ))}
+                              {warnings.length > 2 && (
+                                <p className="text-xs text-muted-foreground">
+                                  +{warnings.length - 2} more
+                                </p>
+                              )}
+                            </div>
+                          )}
+                        </>
+                      );
+                    })()}
                   </td>
                 </tr>
               ))}
@@ -277,6 +301,7 @@ export function PreviewTable({
           />
           <Label htmlFor="overwrite" className="cursor-pointer">
             Overwrite existing products with same slug
+            {existingCount > 0 && ` (${existingCount} in this file)`}
           </Label>
         </div>
         {stats.errors > 0 && (
@@ -303,7 +328,7 @@ export function PreviewTable({
           onClick={() => onImport({ overwriteExisting, skipErrors })}
           disabled={!canImport}
         >
-          Import {importCount} Products
+          Import {importLabel}
         </Button>
       </div>
     </div>

@@ -124,6 +124,7 @@ export async function validateProductRows(
     return {
       row,
       action,
+      current,
       clears,
       status: errors.length > 0 ? "error" : warnings.length > 0 ? "warning" : "valid",
       errors,

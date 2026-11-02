@@ -5,7 +5,10 @@ import { logActivity } from "@/lib/activity";
 import { parseProductCSV, readCsvFile } from "@/lib/bulk-upload/csv-parser";
 import { validateProductRows } from "@/lib/bulk-upload/validator";
 import { importProducts } from "@/lib/bulk-upload/importer";
-import type { ImportOptions } from "@/lib/bulk-upload/types";
+import type { ImportOptions, ImportStats } from "@/lib/bulk-upload/types";
+
+// Large files take a while (one database write per row); progress streams the whole time
+export const maxDuration = 300;
 
 const streamHeaders = {
   "Content-Type": "text/plain; charset=utf-8",
@@ -65,7 +68,9 @@ export async function POST(request: Request) {
   const stream = new ReadableStream({
     async start(controller) {
       try {
+        let result: ImportStats | null = null;
         for await (const event of importProducts(validated, options)) {
+          if (event.type === "complete") result = event.stats;
           controller.enqueue(encoder.encode(JSON.stringify(event) + "\n"));
         }
 
@@ -75,7 +80,9 @@ export async function POST(request: Request) {
         await logActivity(user, {
           action: "bulk_import",
           entity: "product",
-          summary: `Imported ${validated.length} rows from CSV`,
+          summary: result
+            ? `CSV import (${result.total} rows): ${result.created} created, ${result.updated} updated, ${result.skipped} skipped, ${result.failed} failed`
+            : `CSV import of ${validated.length} rows`,
         });
 
         controller.close();

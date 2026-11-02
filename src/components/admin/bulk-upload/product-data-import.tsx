@@ -14,6 +14,9 @@ import type {
 
 type Step = "upload" | "preview" | "importing" | "results";
 
+// Vercel rejects request bodies over ~4.5 MB before our code runs
+const MAX_CSV_BYTES = 4 * 1024 * 1024;
+
 /** Product Data tab: CSV → preview → import. Never changes product images. */
 export function ProductDataImport() {
   const [step, setStep] = useState<Step>("upload");
@@ -49,6 +52,12 @@ export function ProductDataImport() {
   });
 
   const handleFileSelected = async (csv: File) => {
+    if (csv.size > MAX_CSV_BYTES) {
+      setError(
+        `This file is ${(csv.size / 1024 / 1024).toFixed(1)} MB — the limit is 4 MB. Split it into smaller files (keep the header row in each).`
+      );
+      return;
+    }
     setIsLoading(true);
     setError(null);
     setCsvFile(csv);
@@ -123,15 +132,17 @@ export function ProductDataImport() {
 
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
+      // One JSON event per line; a line can arrive split across chunks, so keep the tail
+      let buffer = "";
+      let completed = false;
 
       while (true) {
         const { done, value } = await reader.read();
-        if (done) break;
+        buffer += done ? decoder.decode() : decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = done ? "" : lines.pop() ?? "";
 
-        const chunk = decoder.decode(value);
-        const lines = chunk.split("\n").filter((line) => line.trim());
-
-        for (const line of lines) {
+        for (const line of lines.filter((l) => l.trim())) {
           try {
             const event: ImportEvent = JSON.parse(line);
 
@@ -163,6 +174,7 @@ export function ProductDataImport() {
                 stats: { ...prev.stats, failed: prev.stats.failed + 1 },
               }));
             } else if (event.type === "complete") {
+              completed = true;
               setImportStats(event.stats);
               setStep("results");
             }
@@ -170,6 +182,14 @@ export function ProductDataImport() {
             console.error("Failed to parse event:", e);
           }
         }
+        if (done) break;
+      }
+
+      if (!completed) {
+        // Connection ended early (e.g. server time limit): rows before this point were saved
+        throw new Error(
+          "The import stopped before it finished. Some rows may already be saved — check the Products list, then import the remaining rows (overwrite on is safe to re-run)."
+        );
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Import failed");

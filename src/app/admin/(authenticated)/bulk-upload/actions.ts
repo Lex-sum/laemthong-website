@@ -56,7 +56,7 @@ export async function parseAndValidateAction(formData: FormData): Promise<{
     }
     const clearing = validated.filter((v) => v.clears.length > 0).length;
     if (clearing > 0) {
-      notices.push(`${clearing} existing product${clearing > 1 ? "s have" : " has"} blank cells that will clear current values (see "Will clear" below). Remove a column from the file to leave it unchanged.`);
+      notices.push(`${clearing} existing product${clearing > 1 ? "s have" : " has"} blank cells that will clear current values when Overwrite is on (see "Will clear" below). Remove a column from the file to leave it unchanged.`);
     }
 
     const clientRows: ClientValidationResult[] = validated.map((v) => ({

@@ -1,11 +1,11 @@
 import {
-  adminGetBrandBySlug,
-  adminGetCategoryBySlug,
-  adminGetProductBySlug,
+  adminGetAllBrands,
+  adminGetAllCategories,
   adminCreateBrand,
   adminCreateCategory,
   adminCreateProduct,
   adminUpdateProduct,
+  type ProductImportSnapshot,
 } from "@/lib/db/admin";
 import { getNextSortOrder } from "@/lib/db/sort-order";
 import type { DbProduct, LocalizedString } from "@/data/types";
@@ -47,7 +47,7 @@ function mergeList<T>(
 }
 
 /** Only the columns in the file (slug, category, brand, name_th and short_description_th always are). */
-function buildUpdate(data: ParsedProductRow["data"], existing: DbProduct) {
+function buildUpdate(data: ParsedProductRow["data"], existing: ProductImportSnapshot) {
   const update: Partial<Omit<DbProduct, "updated_at">> = {
     category_slug: data.categorySlug,
     brand_slug: data.brandSlug,
@@ -92,6 +92,7 @@ function buildUpdate(data: ParsedProductRow["data"], existing: DbProduct) {
  * with none and updates leave them as they are (images have their own import).
  * Display order is automatic: new products are added after the current last product,
  * in file order; existing products keep their position.
+ * Uses the product data loaded during validation, so each row costs one write.
  */
 export async function* importProducts(
   validatedRows: ValidationResult[],
@@ -100,6 +101,9 @@ export async function* importProducts(
   const stats = { created: 0, updated: 0, skipped: 0, failed: 0 };
   const failures: { slug: string; error: string }[] = [];
   let nextSortOrder: number | null = null;
+  const [brands, categories] = await Promise.all([adminGetAllBrands(), adminGetAllCategories()]);
+  const brandSlugs = new Set(brands.map((b) => b.slug));
+  const categorySlugs = new Set(categories.map((c) => c.slug));
 
   for (let i = 0; i < validatedRows.length; i++) {
     const result = validatedRows[i];
@@ -116,9 +120,17 @@ export async function* importProducts(
       continue;
     }
 
+    // Loaded during validation (same request)
+    const existing = result.current;
+    if (existing && !options.overwriteExisting) {
+      stats.skipped++;
+      yield { type: "skipped", slug: data.slug, reason: "Already exists (overwrite disabled)" };
+      continue;
+    }
+
     try {
       // Auto-create brand if needed
-      if (data.brandSlug && !(await adminGetBrandBySlug(data.brandSlug))) {
+      if (data.brandSlug && !brandSlugs.has(data.brandSlug)) {
         await adminCreateBrand({
           slug: data.brandSlug,
           name: slugToTitle(data.brandSlug),
@@ -128,10 +140,11 @@ export async function* importProducts(
           country: "",
           sort_order: 999,
         });
+        brandSlugs.add(data.brandSlug);
       }
 
       // Auto-create category if needed
-      if (data.categorySlug && !(await adminGetCategoryBySlug(data.categorySlug))) {
+      if (data.categorySlug && !categorySlugs.has(data.categorySlug)) {
         await adminCreateCategory({
           slug: data.categorySlug,
           name: {
@@ -141,24 +154,13 @@ export async function* importProducts(
           description: { th: "", en: "" },
           sort_order: 999,
         });
+        categorySlugs.add(data.categorySlug);
       }
 
-      // Check if exists (for update vs create)
-      const existing = await adminGetProductBySlug(data.slug);
-
       if (existing) {
-        if (options.overwriteExisting) {
-          await adminUpdateProduct(data.slug, buildUpdate(data, existing));
-          stats.updated++;
-          yield { type: "success", slug: data.slug, action: "updated" };
-        } else {
-          stats.skipped++;
-          yield {
-            type: "skipped",
-            slug: data.slug,
-            reason: "Already exists (overwrite disabled)",
-          };
-        }
+        await adminUpdateProduct(data.slug, buildUpdate(data, existing));
+        stats.updated++;
+        yield { type: "success", slug: data.slug, action: "updated" };
       } else {
         nextSortOrder ??= await getNextSortOrder("products");
         await adminCreateProduct({
