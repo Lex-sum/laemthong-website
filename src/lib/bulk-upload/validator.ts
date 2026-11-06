@@ -80,9 +80,9 @@ export async function validateProductRows(
       brandSlugs.add(data.brandSlug); // Mark for creation
     }
 
+    // Categories carry the product specs, so they are never auto-created
     if (data.categorySlug && !categorySlugs.has(data.categorySlug)) {
-      warnings.push(`Category '${data.categorySlug}' will be auto-created with minimal data`);
-      categorySlugs.add(data.categorySlug); // Mark for creation
+      errors.push(`Category '${data.categorySlug}' doesn't exist — add it in Categories first`);
     }
 
     // Duplicate slug detection

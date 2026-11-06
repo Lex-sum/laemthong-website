@@ -94,7 +94,7 @@ export async function adminGetCategoryBySlug(
 }
 
 export async function adminCreateCategory(
-  category: Omit<DbCategory, "updated_at">
+  category: Omit<DbCategory, "updated_at" | "parent_slug"> & { parent_slug?: string | null }
 ): Promise<DbCategory> {
   const supabase = createSupabaseAdminClient();
   const { data, error } = await supabase

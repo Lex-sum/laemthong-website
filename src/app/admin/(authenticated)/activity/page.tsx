@@ -21,6 +21,7 @@ const ENTITY_LABEL: Record<ActivityEntity, string> = {
   content: "Page text",
   company: "Company info",
   inquiry: "Inquiries",
+  spec: "Specs",
   user: "Users",
 };
 

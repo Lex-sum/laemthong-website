@@ -1,8 +1,6 @@
 import {
   adminGetAllBrands,
-  adminGetAllCategories,
   adminCreateBrand,
-  adminCreateCategory,
   adminCreateProduct,
   adminUpdateProduct,
   type ProductImportSnapshot,
@@ -101,9 +99,7 @@ export async function* importProducts(
   const stats = { created: 0, updated: 0, skipped: 0, failed: 0 };
   const failures: { slug: string; error: string }[] = [];
   let nextSortOrder: number | null = null;
-  const [brands, categories] = await Promise.all([adminGetAllBrands(), adminGetAllCategories()]);
-  const brandSlugs = new Set(brands.map((b) => b.slug));
-  const categorySlugs = new Set(categories.map((c) => c.slug));
+  const brandSlugs = new Set((await adminGetAllBrands()).map((b) => b.slug));
 
   for (let i = 0; i < validatedRows.length; i++) {
     const result = validatedRows[i];
@@ -141,20 +137,6 @@ export async function* importProducts(
           sort_order: 999,
         });
         brandSlugs.add(data.brandSlug);
-      }
-
-      // Auto-create category if needed
-      if (data.categorySlug && !categorySlugs.has(data.categorySlug)) {
-        await adminCreateCategory({
-          slug: data.categorySlug,
-          name: {
-            th: slugToTitle(data.categorySlug),
-            en: slugToTitle(data.categorySlug),
-          },
-          description: { th: "", en: "" },
-          sort_order: 999,
-        });
-        categorySlugs.add(data.categorySlug);
       }
 
       if (existing) {

@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { DndContext, closestCenter } from "@dnd-kit/core";
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
-import { Loader2, Pencil, Plus } from "lucide-react";
+import { ChevronRight, Loader2, Pencil, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
@@ -32,22 +33,44 @@ import type { DbCategory } from "@/data/types";
 
 export interface CategoryWithCount extends DbCategory {
   productCount: number;
+  /** Number of sub categories (main categories only) */
+  subCount: number;
+  /** Specs the category defines itself */
+  specCount: number;
 }
 
 type Editing = { mode: "create" } | { mode: "edit"; category: CategoryWithCount };
 
-function CategoryDialog({ editing, onClose }: { editing: Editing | null; onClose: () => void }) {
+function CategoryDialog({
+  editing,
+  parentSlug,
+  onClose,
+}: {
+  editing: Editing | null;
+  parentSlug?: string;
+  onClose: () => void;
+}) {
   const category = editing?.mode === "edit" ? editing.category : undefined;
   return (
     <Dialog open={!!editing} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="sm:max-w-md">
-        {editing && <CategoryForm key={category?.slug ?? "new"} category={category} onClose={onClose} />}
+        {editing && (
+          <CategoryForm key={category?.slug ?? "new"} category={category} parentSlug={parentSlug} onClose={onClose} />
+        )}
       </DialogContent>
     </Dialog>
   );
 }
 
-function CategoryForm({ category, onClose }: { category?: CategoryWithCount; onClose: () => void }) {
+function CategoryForm({
+  category,
+  parentSlug,
+  onClose,
+}: {
+  category?: CategoryWithCount;
+  parentSlug?: string;
+  onClose: () => void;
+}) {
   const [nameTh, setNameTh] = useState(category?.name.th ?? "");
   const [nameEn, setNameEn] = useState(category?.name.en ?? "");
   const [slug, setSlug] = useState(category?.slug ?? "");
@@ -62,6 +85,7 @@ function CategoryForm({ category, onClose }: { category?: CategoryWithCount; onC
     fd.set("nameEn", nameEn);
     fd.set("slug", slug || slugify(nameEn));
     fd.set("_skipRedirect", "true");
+    if (parentSlug && !category) fd.set("parentSlug", parentSlug);
     if (category) {
       fd.set("originalSlug", category.slug);
       fd.set("sortOrder", String(category.sort_order));
@@ -81,8 +105,14 @@ function CategoryForm({ category, onClose }: { category?: CategoryWithCount; onC
   return (
     <form onSubmit={submit} className="space-y-4">
       <DialogHeader>
-        <DialogTitle>{category ? "Edit category" : "Add category"}</DialogTitle>
-        <DialogDescription>Shown as a product filter and in the footer.</DialogDescription>
+        <DialogTitle>
+          {category ? "Edit category" : parentSlug ? "Add sub category" : "Add main category"}
+        </DialogTitle>
+        <DialogDescription>
+          {parentSlug
+            ? "Products go into a sub category. It gets the main category's specs plus its own."
+            : "Shown in the product catalog. Add sub categories and specs on its page."}
+        </DialogDescription>
       </DialogHeader>
       <div className="grid gap-3 sm:grid-cols-2">
         <div className="space-y-1.5">
@@ -133,7 +163,14 @@ function CategoryForm({ category, onClose }: { category?: CategoryWithCount; onC
   );
 }
 
-export function CategoriesTable({ categories }: { categories: CategoryWithCount[] }) {
+/** Main categories, or the sub categories of one main category (parentSlug). */
+export function CategoriesTable({
+  categories,
+  parentSlug,
+}: {
+  categories: CategoryWithCount[];
+  parentSlug?: string;
+}) {
   const [items, setItems] = useState(categories);
   const [editing, setEditing] = useState<Editing | null>(null);
   useEffect(() => { setItems(categories); }, [categories]);
@@ -153,7 +190,7 @@ export function CategoriesTable({ categories }: { categories: CategoryWithCount[
       <div className="flex justify-end">
         <Button onClick={() => setEditing({ mode: "create" })}>
           <Plus className="mr-2 h-4 w-4" />
-          Add Category
+          {parentSlug ? "Add Sub Category" : "Add Main Category"}
         </Button>
       </div>
 
@@ -166,22 +203,37 @@ export function CategoriesTable({ categories }: { categories: CategoryWithCount[
                 <TableHead>Name (EN)</TableHead>
                 <TableHead>Name (TH)</TableHead>
                 <TableHead className="hidden md:table-cell">Slug</TableHead>
+                {!parentSlug && <TableHead className="w-20 text-right">Subs</TableHead>}
+                <TableHead className="w-20 text-right">Specs</TableHead>
                 <TableHead className="w-24 text-right">Products</TableHead>
                 <TableHead className="w-24 text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {items.length === 0 ? (
-                <EmptyTableState title="No categories yet" description="Add a category to group products" />
+                <EmptyTableState
+                  title={parentSlug ? "No sub categories yet" : "No categories yet"}
+                  description={parentSlug ? "Add sub categories to group this category's products" : "Add a main category to group products"}
+                />
               ) : (
                 <SortableContext items={items.map((c) => c.slug)} strategy={verticalListSortingStrategy}>
                   {items.map((category) => (
                     <SortableTableRow key={category.slug} id={category.slug} disabled={isPending}>
-                      <TableCell className="font-medium">{category.name.en}</TableCell>
+                      <TableCell className="font-medium">
+                        <Link
+                          href={`/admin/categories/${category.slug}`}
+                          className="inline-flex items-center gap-1 hover:underline"
+                        >
+                          {category.name.en || category.name.th}
+                          <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
+                        </Link>
+                      </TableCell>
                       <TableCell>{category.name.th}</TableCell>
                       <TableCell className="hidden font-mono text-sm text-muted-foreground md:table-cell">
                         {category.slug}
                       </TableCell>
+                      {!parentSlug && <TableCell className="text-right tabular-nums">{category.subCount}</TableCell>}
+                      <TableCell className="text-right tabular-nums">{category.specCount}</TableCell>
                       <TableCell className="text-right tabular-nums">{category.productCount}</TableCell>
                       <TableCell className="text-right">
                         <div className="flex items-center justify-end gap-1">
@@ -200,9 +252,13 @@ export function CategoriesTable({ categories }: { categories: CategoryWithCount[
                               <DeleteDialog
                                 title={`Delete "${category.name.en}"?`}
                                 description={
-                                  category.productCount > 0
-                                    ? `${category.productCount} products use this category — move them to another category first.`
-                                    : "This can't be undone."
+                                  category.subCount > 0
+                                    ? `It has ${category.subCount} sub categories — delete or move them first.`
+                                    : category.productCount > 0
+                                      ? `${category.productCount} products use this category — move them to another category first.`
+                                      : category.specCount > 0
+                                        ? `Its ${category.specCount} specs are deleted too. This can't be undone.`
+                                        : "This can't be undone."
                                 }
                                 onDelete={deleteCategoryAction.bind(null, category.slug)}
                               />
@@ -219,7 +275,7 @@ export function CategoriesTable({ categories }: { categories: CategoryWithCount[
         </DndContext>
       </div>
 
-      <CategoryDialog editing={editing} onClose={() => setEditing(null)} />
+      <CategoryDialog editing={editing} parentSlug={parentSlug} onClose={() => setEditing(null)} />
     </div>
   );
 }

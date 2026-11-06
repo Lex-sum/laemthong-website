@@ -8,7 +8,9 @@ import {
   adminCreateCategory,
   adminUpdateCategory,
   adminDeleteCategory,
+  adminGetCategoryBySlug,
 } from "@/lib/db/admin";
+import { createSupabaseAdminClient } from "@/lib/supabase";
 import { deleteImageFolder } from "@/lib/storage";
 import { handleActionError } from "@/lib/db/errors";
 import { getNextSortOrder } from "@/lib/db/sort-order";
@@ -35,6 +37,15 @@ export async function createCategoryAction(
 
   const skipRedirect = formData.get("_skipRedirect") === "true";
 
+  // Sub categories hang off a main category (two levels only)
+  const parentSlug = (formData.get("parentSlug") as string | null) || null;
+  if (parentSlug) {
+    const parent = await adminGetCategoryBySlug(parentSlug);
+    if (!parent || parent.parent_slug) {
+      return { message: "Sub categories can only be added to a main category." };
+    }
+  }
+
   const sortOrder = validated.data.sortOrder ?? await getNextSortOrder("categories");
 
   let newCategory: import("@/data/types").DbCategory;
@@ -45,13 +56,14 @@ export async function createCategoryAction(
       name: { th: validated.data.nameTh, en: validated.data.nameEn },
       description: { th: "", en: "" },
       sort_order: sortOrder,
+      parent_slug: parentSlug,
     });
   } catch (error) {
     return handleActionError(error, "category", "create");
   }
 
-  revalidateEntity("/admin/products");
-  await logActivity(user, { action: "create", entity: "category", entityId: validated.data.slug, summary: `Created category "${validated.data.nameEn}"` });
+  revalidateEntity("/admin/categories");
+  await logActivity(user, { action: "create", entity: "category", entityId: validated.data.slug, summary: `Created ${parentSlug ? `sub category of ${parentSlug}` : "category"} "${validated.data.nameEn}"` });
 
   if (skipRedirect) {
     return { success: true, category: newCategory };
@@ -98,7 +110,7 @@ export async function updateCategoryAction(
     return handleActionError(error, "category", "update");
   }
 
-  revalidateEntity("/admin/products");
+  revalidateEntity("/admin/categories");
   await logActivity(user, { action: "update", entity: "category", entityId: slug, summary: `Updated category "${validated.data.nameEn}"` });
 
   if (skipRedirect) {
@@ -113,6 +125,15 @@ export async function deleteCategoryAction(
 ): Promise<CategoryActionState> {
   const user = await requireAdmin();
 
+  // Say exactly what blocks the delete (the database would refuse either way)
+  const supabase = createSupabaseAdminClient();
+  const [{ count: subs }, { count: products }] = await Promise.all([
+    supabase.from("categories").select("slug", { count: "exact", head: true }).eq("parent_slug", slug),
+    supabase.from("products").select("slug", { count: "exact", head: true }).eq("category_slug", slug),
+  ]);
+  if (subs) return { message: `Delete or move its ${subs} sub categories first.` };
+  if (products) return { message: `${products} products use this category — move them to another category first.` };
+
   try {
     await adminDeleteCategory(slug);
     deleteImageFolder("categories", slug).catch(() => {});
@@ -120,7 +141,7 @@ export async function deleteCategoryAction(
     return handleActionError(error, "category", "delete");
   }
 
-  revalidateEntity("/admin/products");
+  revalidateEntity("/admin/categories");
   await logActivity(user, { action: "delete", entity: "category", entityId: slug, summary: `Deleted category "${slug}"` });
   return { success: true };
 }

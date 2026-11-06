@@ -20,6 +20,7 @@ export type ActivityEntity =
   | "content"
   | "company"
   | "inquiry"
+  | "spec"
   | "user";
 
 /**

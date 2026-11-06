@@ -6,6 +6,7 @@ function toCategory(row: DbCategory): Category {
     slug: row.slug,
     name: row.name,
     description: row.description,
+    parentSlug: row.parent_slug ?? null,
     sortOrder: row.sort_order,
   };
 }

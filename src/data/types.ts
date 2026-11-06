@@ -29,6 +29,8 @@ export interface Category {
   slug: string;
   name: LocalizedString;
   description: LocalizedString;
+  /** Main category of a sub category; null for a main category */
+  parentSlug: string | null;
   productCount?: number;
   sortOrder: number;
 }
@@ -96,8 +98,51 @@ export interface DbCategory {
   name: LocalizedString;
   description: LocalizedString;
   sort_order: number;
+  /** Main category of a sub category; null for a main category */
+  parent_slug: string | null;
   updated_at: string;
 }
+
+// ── Product specs (defined per category; a main category's specs apply to its subs) ──
+
+export type SpecType = "single" | "multi" | "number" | "boolean" | "text";
+
+export interface SpecOption {
+  id: string;
+  key: string;
+  label: LocalizedString;
+  sortOrder: number;
+}
+
+/** Number range used as a filter choice: min < value <= max (null = open end) */
+export interface SpecBucket {
+  min: number | null;
+  max: number | null;
+}
+
+export interface SpecAttribute {
+  id: string;
+  categorySlug: string;
+  key: string;
+  name: LocalizedString;
+  type: SpecType;
+  unit: string;
+  filterable: boolean;
+  buckets: SpecBucket[];
+  sortOrder: number;
+  /** Choices for single / multi specs */
+  options: SpecOption[];
+}
+
+/** A product's value for one spec, keyed by attribute id */
+export interface SpecValue {
+  optionIds?: string[];
+  number?: number;
+  bool?: boolean;
+  text?: LocalizedString;
+}
+
+export type ProductSpecValues = Record<string, SpecValue>;
 
 export interface DbBrand {
   slug: string;
