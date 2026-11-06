@@ -9,7 +9,10 @@ import {
   adminUpdateProduct,
   adminDeleteProduct,
   adminGetProductBySlug,
+  adminGetAllCategories,
 } from "@/lib/db/admin";
+import { adminGetSpecsForCategory, adminReplaceProductSpecValues } from "@/lib/db/taxonomy";
+import { normalizeSpecValues, type SpecValueRow } from "@/lib/spec-values";
 import { createSupabaseAdminClient } from "@/lib/supabase";
 import { deleteImagesByUrl } from "@/lib/storage";
 import { MAX_PRODUCT_IMAGES } from "@/lib/constants";
@@ -17,7 +20,7 @@ import { handleActionError } from "@/lib/db/errors";
 import { getNextSortOrder } from "@/lib/db/sort-order";
 import { revalidateEntity } from "@/lib/revalidation";
 import { slugify } from "@/lib/utils";
-import type { LocalizedString } from "@/data/types";
+import type { LocalizedString, ProductSpecValues } from "@/data/types";
 import type { ActionState } from "./types";
 
 function parseJsonOrDefault<T>(value: string | undefined, fallback: T): T {
@@ -27,6 +30,17 @@ function parseJsonOrDefault<T>(value: string | undefined, fallback: T): T {
   } catch {
     return fallback;
   }
+}
+
+/** Spec values from the form, checked against the specs of the chosen category. */
+async function prepareSpecValues(
+  json: string | undefined,
+  categorySlug: string
+): Promise<{ rows: SpecValueRow[] } | { error: string }> {
+  const values = parseJsonOrDefault<ProductSpecValues>(json, {});
+  const specs = await adminGetSpecsForCategory(categorySlug, await adminGetAllCategories());
+  const { rows, errors } = normalizeSpecValues(values, specs);
+  return errors.length > 0 ? { error: errors.join("; ") } : { rows };
 }
 
 export async function createProductAction(
@@ -46,7 +60,7 @@ export async function createProductAction(
     categorySlug: formData.get("categorySlug"),
     brandSlug: formData.get("brandSlug"),
     images: formData.get("images") || undefined,
-    specifications: formData.get("specifications") || undefined,
+    specValues: formData.get("specValues") || undefined,
     features: formData.get("features") || undefined,
     documents: formData.get("documents") || undefined,
     featured: formData.get("featured") || undefined,
@@ -68,6 +82,9 @@ export async function createProductAction(
     return { errors: { images: [`A product can have at most ${MAX_PRODUCT_IMAGES} images.`] } };
   }
 
+  const specs = await prepareSpecValues(validated.data.specValues, validated.data.categorySlug);
+  if ("error" in specs) return { errors: { specValues: [specs.error] } };
+
   try {
     await adminCreateProduct({
       slug,
@@ -83,9 +100,6 @@ export async function createProductAction(
         en: validated.data.descriptionEn,
       },
       images,
-      specifications: parseJsonOrDefault<
-        { label: LocalizedString; value: LocalizedString }[]
-      >(validated.data.specifications, []),
       features: parseJsonOrDefault<LocalizedString[]>(
         validated.data.features,
         []
@@ -97,6 +111,7 @@ export async function createProductAction(
       featured: validated.data.featured === "on",
       sort_order: sortOrder,
     });
+    await adminReplaceProductSpecValues(slug, specs.rows);
   } catch (error) {
     return handleActionError(error, "product", "create");
   }
@@ -125,7 +140,7 @@ export async function updateProductAction(
     categorySlug: formData.get("categorySlug"),
     brandSlug: formData.get("brandSlug"),
     images: formData.get("images") || undefined,
-    specifications: formData.get("specifications") || undefined,
+    specValues: formData.get("specValues") || undefined,
     features: formData.get("features") || undefined,
     documents: formData.get("documents") || undefined,
     featured: formData.get("featured") || undefined,
@@ -170,9 +185,6 @@ export async function updateProductAction(
       en: validated.data.descriptionEn,
     },
     images,
-    specifications: parseJsonOrDefault<
-      { label: LocalizedString; value: LocalizedString }[]
-    >(validated.data.specifications, []),
     features: parseJsonOrDefault<LocalizedString[]>(
       validated.data.features,
       []
@@ -188,8 +200,13 @@ export async function updateProductAction(
     updateData.sort_order = validated.data.sortOrder;
   }
 
+  // Values of specs outside the (possibly new) category are dropped here
+  const specs = await prepareSpecValues(validated.data.specValues, validated.data.categorySlug);
+  if ("error" in specs) return { errors: { specValues: [specs.error] } };
+
   try {
     await adminUpdateProduct(originalSlug, updateData);
+    await adminReplaceProductSpecValues(originalSlug, specs.rows);
   } catch (error) {
     return handleActionError(error, "product", "update");
   }

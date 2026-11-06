@@ -225,7 +225,7 @@ export function UploadZone({ onFileSelected }: UploadZoneProps) {
           <div className="mt-1 rounded border bg-muted/30 p-3 font-mono text-xs leading-relaxed">
             slug &mdash; Unique ID (lowercase letters, numbers, dashes only)
             <br />
-            category_slug &mdash; Must exist or will be auto-created
+            category_slug &mdash; Must exist (main or sub category, see Categories)
             <br />
             brand_slug &mdash; Must exist or will be auto-created
             <br />
@@ -248,21 +248,17 @@ export function UploadZone({ onFileSelected }: UploadZoneProps) {
             <br />
             featured &mdash; true/false, 1/0 or yes/no (blank = false)
             <br />
-            spec_labels_th, spec_labels_en &mdash; Pipe-separated spec labels
-            <br />
-            spec_values_th, spec_values_en &mdash; Pipe-separated spec values
-            <br />
             features_th, features_en &mdash; Pipe-separated feature list
           </div>
           <p className="mt-2">
             Use <code className="text-xs bg-muted px-1 py-0.5 rounded">|</code>{" "}
             (pipe) to separate items, e.g.{" "}
             <code className="text-xs bg-muted px-1 py-0.5 rounded">
-              Weight|Voltage|Power
+              ทนทาน|ใช้งานง่าย
             </code>
-            . All spec columns must have the same number of items. Features must
-            also match between Thai and English if both are provided. When updating, a language
-            whose columns are not in the file keeps its current text.
+            . Features must have the same number of items in Thai and English if both are
+            provided. When updating, a language whose column is not in the file keeps its current
+            text.
           </p>
         </div>
 
@@ -292,10 +288,11 @@ export function UploadZone({ onFileSelected }: UploadZoneProps) {
               Auto-creation
             </p>
             <p className="mt-0.5 text-yellow-800 dark:text-yellow-200">
-              Unknown <code className="text-xs bg-yellow-100 dark:bg-yellow-900 px-1 py-0.5 rounded">category_slug</code> or{" "}
-              <code className="text-xs bg-yellow-100 dark:bg-yellow-900 px-1 py-0.5 rounded">brand_slug</code> values
-              will auto-create placeholder entries. Double-check spelling to
-              avoid unintended entries.
+              An unknown <code className="text-xs bg-yellow-100 dark:bg-yellow-900 px-1 py-0.5 rounded">brand_slug</code>{" "}
+              auto-creates a placeholder brand — double-check spelling. Categories are never created
+              here (they carry the product specs): an unknown{" "}
+              <code className="text-xs bg-yellow-100 dark:bg-yellow-900 px-1 py-0.5 rounded">category_slug</code> is an
+              error, so add it in Categories first.
             </p>
           </div>
         </div>

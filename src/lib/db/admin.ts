@@ -141,6 +141,8 @@ export interface AdminProductsQuery {
   sap?: "in" | "out";
   /** Only products still missing their English name or short description. */
   missingEnglish?: boolean;
+  /** Category slugs to include (a main category plus its sub categories) */
+  categories?: string[];
 }
 
 export interface AdminProductsResult {
@@ -188,7 +190,8 @@ export async function adminGetProducts(
   }
 
   // Filters
-  if (category) q = q.eq("category_slug", category);
+  if (query.categories) q = q.in("category_slug", query.categories);
+  else if (category) q = q.eq("category_slug", category);
   if (brand) q = q.eq("brand_slug", brand);
 
   // Always sort by sort_order ascending
@@ -269,7 +272,7 @@ export async function adminGetProductCount(): Promise<number> {
 
 export type ProductImportSnapshot = Pick<
   DbProduct,
-  "slug" | "name" | "short_description" | "description" | "specifications" | "features" | "featured"
+  "slug" | "name" | "short_description" | "description" | "features" | "featured"
 >;
 
 /** Current data of the given products (for bulk import checks); missing slugs are left out. */
@@ -283,7 +286,7 @@ export async function adminGetProductsBySlugs(
   for (let i = 0; i < unique.length; i += chunkSize) {
     const { data, error } = await supabase
       .from("products")
-      .select("slug,name,short_description,description,specifications,features,featured")
+      .select("slug,name,short_description,description,features,featured")
       .in("slug", unique.slice(i, i + chunkSize));
     if (error) throw error;
     products.push(...((data ?? []) as ProductImportSnapshot[]));
@@ -302,7 +305,7 @@ export async function adminGetProductsForExport(
     const { data, error } = await supabase
       .from("products")
       .select(
-        "slug,category_slug,brand_slug,name,short_description,description,specifications,features,featured,sort_order"
+        "slug,category_slug,brand_slug,name,short_description,description,features,featured,sort_order"
       )
       .order("sort_order")
       .order("slug")

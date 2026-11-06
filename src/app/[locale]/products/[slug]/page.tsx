@@ -26,6 +26,8 @@ import {
   buildProductSchema,
   buildBreadcrumbSchema,
 } from "@/lib/seo";
+import { getProductSpecValues, getSpecsForCategory } from "@/lib/db/taxonomy";
+import { formatSpecValue } from "@/lib/spec-format";
 import type { Locale } from "@/data/types";
 
 export const revalidate = 3600;
@@ -80,11 +82,25 @@ export default async function ProductDetailPage({ params }: Props) {
   const product = await getProductBySlug(slug);
   if (!product) notFound();
 
-  const [category, brand, relatedProducts] = await Promise.all([
+  const loc = locale as Locale;
+  const [category, brand, relatedProducts, specs, specValues] = await Promise.all([
     getCategoryBySlug(product.categorySlug),
     getBrandBySlug(product.brandSlug),
     getRelatedProducts(product.categorySlug, product.slug),
+    getSpecsForCategory(product.categorySlug),
+    getProductSpecValues(product.slug),
   ]);
+  const parentCategory = category?.parentSlug ? await getCategoryBySlug(category.parentSlug) : undefined;
+  // Category trail for breadcrumbs: main › sub
+  const categoryTrail = [parentCategory, category].filter((c) => !!c).map((c) => ({
+    name: c.name[loc],
+    href: `/products?category=${c.slug}`,
+  }));
+  // Filled-in specs, in category order (main category's first)
+  const specRows = specs.flatMap((spec) => {
+    const value = formatSpecValue(spec, specValues[spec.id], loc);
+    return value ? [{ id: spec.id, name: spec.name[loc] || spec.name.th, value }] : [];
+  });
 
   return (
     <>
@@ -94,20 +110,14 @@ export default async function ProductDetailPage({ params }: Props) {
           locale as Locale,
           brand ?? undefined,
           category ?? undefined,
+          specRows,
         )}
       />
       <JsonLd
         data={buildBreadcrumbSchema(locale as Locale, [
           { name: tCommon("home"), href: "" },
           { name: t("title"), href: "/products" },
-          ...(category
-            ? [
-                {
-                  name: category.name[locale as Locale],
-                  href: `/products?category=${category.slug}`,
-                },
-              ]
-            : []),
+          ...categoryTrail,
           { name: product.name[locale as Locale], href: `/products/${product.slug}` },
         ])}
       />
@@ -116,9 +126,7 @@ export default async function ProductDetailPage({ params }: Props) {
         items={[
           { label: tCommon("home"), href: "/" },
           { label: t("title"), href: "/products" },
-          ...(category
-            ? [{ label: category.name[locale as Locale], href: `/products?category=${category.slug}` }]
-            : []),
+          ...categoryTrail.map((c) => ({ label: c.name, href: c.href })),
           { label: product.name[locale as Locale] },
         ]}
       />
@@ -194,11 +202,11 @@ export default async function ProductDetailPage({ params }: Props) {
           </div>
 
           {/* Specifications & Documents — tabbed layout */}
-          {(product.specifications.length > 0 || (product.documents && product.documents.length > 0)) && (
+          {(specRows.length > 0 || (product.documents && product.documents.length > 0)) && (
             <div className="mt-12">
-              <Tabs defaultValue={product.specifications.length > 0 ? "specifications" : "documents"}>
+              <Tabs defaultValue={specRows.length > 0 ? "specifications" : "documents"}>
                 <TabsList variant="line" className="w-full justify-start border-b">
-                  {product.specifications.length > 0 && (
+                  {specRows.length > 0 && (
                     <TabsTrigger value="specifications">
                       {t("specifications")}
                     </TabsTrigger>
@@ -210,18 +218,18 @@ export default async function ProductDetailPage({ params }: Props) {
                   )}
                 </TabsList>
 
-                {product.specifications.length > 0 && (
+                {specRows.length > 0 && (
                   <TabsContent value="specifications" className="mt-6">
                     <div className="overflow-hidden rounded-lg border">
                       <Table>
                         <TableBody>
-                          {product.specifications.map((spec, i) => (
-                            <TableRow key={i}>
+                          {specRows.map((spec) => (
+                            <TableRow key={spec.id}>
                               <TableCell className="w-1/3 font-medium text-foreground">
-                                {spec.label[locale as Locale]}
+                                {spec.name}
                               </TableCell>
                               <TableCell className="text-muted-foreground">
-                                {spec.value[locale as Locale]}
+                                {spec.value}
                               </TableCell>
                             </TableRow>
                           ))}

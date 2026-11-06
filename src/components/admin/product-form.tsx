@@ -8,10 +8,10 @@ import { CheckCircle2, AlertCircle, AlertTriangle, Circle } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { ImageUpload } from "./image-upload";
 import { BilingualTextarea } from "./bilingual-textarea";
-import { ProductSpecificationsSection } from "./product-specifications-section";
 import { ProductFeaturesSection } from "./product-features-section";
 import { ProductDocumentsSection } from "./product-documents-section";
 import { ProductBasicInfoTab } from "./product-basic-info-tab";
+import { ProductSpecsEditor } from "./product-specs-editor";
 import {
   createProductAction,
   updateProductAction,
@@ -22,7 +22,14 @@ import { toast } from "sonner";
 import { useFormSlug } from "@/hooks/use-form-slug";
 import { useUnsavedChanges } from "@/hooks/use-unsaved-changes";
 import { useUnsavedChangesContext } from "./unsaved-changes-provider";
-import type { DbProduct, DbBrand, DbCategory, LocalizedString } from "@/data/types";
+import type {
+  DbProduct,
+  DbBrand,
+  DbCategory,
+  LocalizedString,
+  ProductSpecValues,
+  SpecAttribute,
+} from "@/data/types";
 import type { SapProductInfo } from "@/lib/db/admin";
 import { MAX_PRODUCT_IMAGES } from "@/lib/constants";
 
@@ -38,9 +45,21 @@ interface ProductFormProps {
   categories: DbCategory[];
   defaults?: ProductFormDefaults;
   sapInfo?: SapProductInfo;
+  /** Each category's own specs (a product gets its main category's + its sub category's) */
+  specsByCategory: Record<string, SpecAttribute[]>;
+  /** The product's current spec values */
+  specValues?: ProductSpecValues;
 }
 
-export function ProductForm({ product, brands, categories, defaults, sapInfo }: ProductFormProps) {
+export function ProductForm({
+  product,
+  brands,
+  categories,
+  defaults,
+  sapInfo,
+  specsByCategory,
+  specValues: initialSpecValues = {},
+}: ProductFormProps) {
   const isEditing = !!product;
   const action = isEditing ? updateProductAction : createProductAction;
 
@@ -63,9 +82,7 @@ export function ProductForm({ product, brands, categories, defaults, sapInfo }: 
     initialCustom: !product && !!defaults?.slug,
   });
 
-  const [specifications, setSpecifications] = useState<
-    { label: LocalizedString; value: LocalizedString }[]
-  >(product?.specifications ?? []);
+  const [specValues, setSpecValues] = useState<ProductSpecValues>(initialSpecValues);
   const [features, setFeatures] = useState<LocalizedString[]>(
     product?.features ?? []
   );
@@ -86,7 +103,7 @@ export function ProductForm({ product, brands, categories, defaults, sapInfo }: 
   const [initialValues] = useState({
     slug: product?.slug ?? defaults?.slug ?? "",
     images: JSON.stringify(product?.images ?? []),
-    specifications: JSON.stringify(product?.specifications ?? []),
+    specValues: JSON.stringify(initialSpecValues),
     features: JSON.stringify(product?.features ?? []),
     documents: JSON.stringify(product?.documents ?? []),
     categorySlug: product?.category_slug ?? "",
@@ -99,7 +116,7 @@ export function ProductForm({ product, brands, categories, defaults, sapInfo }: 
   const isDirty =
     currentSlug !== initialValues.slug ||
     JSON.stringify(images) !== initialValues.images ||
-    JSON.stringify(specifications) !== initialValues.specifications ||
+    JSON.stringify(specValues) !== initialValues.specValues ||
     JSON.stringify(features) !== initialValues.features ||
     JSON.stringify(documents) !== initialValues.documents ||
     categorySlug !== initialValues.categorySlug ||
@@ -111,6 +128,12 @@ export function ProductForm({ product, brands, categories, defaults, sapInfo }: 
   useUnsavedChanges(isDirty);
   const { setIsDirty } = useUnsavedChangesContext();
   useEffect(() => { setIsDirty(isDirty); }, [isDirty, setIsDirty]);
+
+  // Specs of the chosen category: its main category's first, then its own
+  const category = categories.find((c) => c.slug === categorySlug);
+  const categorySpecs = category
+    ? [...(category.parent_slug ? specsByCategory[category.parent_slug] ?? [] : []), ...(specsByCategory[category.slug] ?? [])]
+    : [];
 
   useEffect(() => {
     if (state.success) {
@@ -133,15 +156,17 @@ export function ProductForm({ product, brands, categories, defaults, sapInfo }: 
     // Optional section: mark it done once there is a Thai description
     const isDescriptionComplete = descriptionTh.trim().length > 0;
     const isImagesAdded = images.length > 0;
-    const isDetailsAdded = specifications.length > 0 || features.length > 0 || documents.length > 0;
+    const isDetailsAdded = features.length > 0 || documents.length > 0;
+    const isSpecsAdded = Object.keys(specValues).length > 0;
 
     return {
       basic: hasBasicError ? 'error' : isBasicComplete ? 'complete' : 'incomplete',
       description: hasDescriptionError ? 'error' : isDescriptionComplete ? 'complete' : 'incomplete',
       images: isImagesAdded ? 'complete' : 'incomplete',
+      specs: errors.specValues ? 'error' : isSpecsAdded ? 'complete' : 'incomplete',
       details: isDetailsAdded ? 'complete' : 'incomplete',
     };
-  }, [state.errors, categorySlug, brandSlug, descriptionTh, images, specifications, features, documents]);
+  }, [state.errors, categorySlug, brandSlug, descriptionTh, images, specValues, features, documents]);
 
   const getTabIcon = (status: TabStatus) => {
     if (status === 'complete') {
@@ -160,11 +185,7 @@ export function ProductForm({ product, brands, categories, defaults, sapInfo }: 
       )}
       <input type="hidden" name="slug" value={isEditing ? product.slug : currentSlug} />
       <input type="hidden" name="images" value={JSON.stringify(images)} />
-      <input
-        type="hidden"
-        name="specifications"
-        value={JSON.stringify(specifications)}
-      />
+      <input type="hidden" name="specValues" value={JSON.stringify(specValues)} />
       <input type="hidden" name="features" value={JSON.stringify(features)} />
       <input type="hidden" name="documents" value={JSON.stringify(documents)} />
       {featured && <input type="hidden" name="featured" value="on" />}
@@ -182,6 +203,10 @@ export function ProductForm({ product, brands, categories, defaults, sapInfo }: 
           <TabsTrigger value="description" className="gap-2">
             {getTabIcon(tabStatus.description)}
             Description
+          </TabsTrigger>
+          <TabsTrigger value="specs" className="gap-2">
+            {getTabIcon(tabStatus.specs)}
+            Specs
           </TabsTrigger>
           <TabsTrigger value="images" className="gap-2">
             {getTabIcon(tabStatus.images)}
@@ -235,7 +260,18 @@ export function ProductForm({ product, brands, categories, defaults, sapInfo }: 
           />
         </TabsContent>
 
-        {/* Tab 3: Images */}
+        {/* Tab 3: Specs (defined by the category) */}
+        <TabsContent value="specs" forceMount className="data-[state=inactive]:hidden pt-4">
+          <ProductSpecsEditor
+            categorySlug={categorySlug}
+            specs={categorySpecs}
+            values={specValues}
+            onChange={setSpecValues}
+            error={state.errors?.specValues?.[0]}
+          />
+        </TabsContent>
+
+        {/* Tab 4: Images */}
         <TabsContent value="images" forceMount className="data-[state=inactive]:hidden space-y-6 pt-4">
           <div className="space-y-3">
             <div>
@@ -276,10 +312,6 @@ export function ProductForm({ product, brands, categories, defaults, sapInfo }: 
 
         {/* Tab 4: Details */}
         <TabsContent value="details" forceMount className="data-[state=inactive]:hidden space-y-8 pt-4">
-          <ProductSpecificationsSection
-            specifications={specifications}
-            onSpecificationsChange={setSpecifications}
-          />
           <ProductFeaturesSection
             features={features}
             onFeaturesChange={setFeatures}

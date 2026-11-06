@@ -33,10 +33,6 @@ function toProduct(row: DbProduct): Product {
     shortDescription,
     description: fillDescription(row.description, shortDescription),
     images: row.images ?? [],
-    specifications: (row.specifications ?? []).map((spec) => ({
-      label: fillEnglish(spec.label),
-      value: fillEnglish(spec.value),
-    })),
     features: (row.features ?? []).map(fillEnglish),
     documents: row.documents,
     featured: row.featured,

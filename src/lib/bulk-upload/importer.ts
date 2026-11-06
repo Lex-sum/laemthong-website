@@ -10,8 +10,6 @@ import type { DbProduct, LocalizedString } from "@/data/types";
 import { parseFeatured, splitPipe } from "./csv-parser";
 import type { ValidationResult, ImportOptions, ImportEvent, ParsedProductRow } from "./types";
 
-type Spec = { label: LocalizedString; value: LocalizedString };
-
 function slugToTitle(slug: string): string {
   return slug
     .split("-")
@@ -61,18 +59,6 @@ function buildUpdate(data: ParsedProductRow["data"], existing: ProductImportSnap
   };
   const featured = parseFeatured(data.featured);
   if (typeof featured === "boolean") update.featured = featured;
-  const specColumns = [data.specLabelsTh, data.specLabelsEn, data.specValuesTh, data.specValuesEn];
-  if (specColumns.some((column) => column !== undefined)) {
-    update.specifications = mergeList<Spec>(
-      specColumns,
-      existing.specifications ?? [],
-      (spec) => [spec?.label.th ?? "", spec?.label.en ?? "", spec?.value.th ?? "", spec?.value.en ?? ""],
-      ([labelTh, labelEn, valueTh, valueEn]) => ({
-        label: { th: labelTh, en: labelEn },
-        value: { th: valueTh, en: valueEn },
-      })
-    );
-  }
   const featureColumns = [data.featuresTh, data.featuresEn];
   if (featureColumns.some((column) => column !== undefined)) {
     update.features = mergeList<LocalizedString>(
@@ -156,7 +142,6 @@ export async function* importProducts(
           },
           description: { th: data.descriptionTh ?? "", en: data.descriptionEn ?? "" },
           images: [],
-          specifications: data.parsedSpecifications ?? [],
           features: data.parsedFeatures ?? [],
           documents: [],
           featured: parseFeatured(data.featured) === true,

@@ -3,20 +3,22 @@
 import { useState } from "react";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import Link from "next/link";
 import { Plus } from "lucide-react";
 import { SlugInput } from "./slug-input";
 import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
   SelectSeparator,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
 import { BilingualInput } from "./bilingual-input";
 import { BilingualTextarea } from "./bilingual-textarea";
-import { ManageCategoriesDialog } from "./manage-categories-dialog";
 import { QuickCreateBrandDialog } from "./quick-create-brand-dialog";
 import { SapStockPanel } from "./sap-stock-panel";
 import Image from "next/image";
@@ -66,14 +68,23 @@ export function ProductBasicInfoTab({
   onBrandSlugChange,
   featured,
   onFeaturedChange,
-  categories: initialCategories,
+  categories,
   brands: initialBrands,
   errors,
 }: ProductBasicInfoTabProps) {
-  const [categoriesList, setCategoriesList] = useState(initialCategories);
   const [brandsList, setBrandsList] = useState(initialBrands);
-  const [categoryDialogOpen, setCategoryDialogOpen] = useState(false);
   const [brandDialogOpen, setBrandDialogOpen] = useState(false);
+
+  const mains = categories.filter((c) => !c.parent_slug);
+  const subsOf = (slug: string) => categories.filter((c) => c.parent_slug === slug);
+  const selectedCategory = categories.find((c) => c.slug === categorySlug);
+  const needsSub = !!selectedCategory && !selectedCategory.parent_slug && subsOf(selectedCategory.slug).length > 0;
+  const categoryLabel = (slug: string) => {
+    const c = categories.find((x) => x.slug === slug);
+    if (!c) return null;
+    const parent = c.parent_slug ? categories.find((x) => x.slug === c.parent_slug) : undefined;
+    return parent ? `${parent.name.th} › ${c.name.th}` : c.name.th;
+  };
 
   return (
     <div className="space-y-6">
@@ -133,38 +144,35 @@ export function ProductBasicInfoTab({
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="space-y-2">
           <Label>Category *</Label>
-          <Select
-            value={categorySlug}
-            onValueChange={(val) => {
-              if (val === "__create_new__") {
-                setCategoryDialogOpen(true);
-              } else {
-                onCategorySlugChange(val);
-              }
-            }}
-          >
+          <Select value={categorySlug} onValueChange={onCategorySlugChange}>
             <SelectTrigger>
-              <SelectValue placeholder="Select category">
-                {categorySlug && (() => {
-                  const cat = categoriesList.find(c => c.slug === categorySlug);
-                  if (!cat) return null;
-                  return cat.name.en;
-                })()}
-              </SelectValue>
+              <SelectValue placeholder="Select category">{categorySlug && categoryLabel(categorySlug)}</SelectValue>
             </SelectTrigger>
-            <SelectContent position="popper">
-              {categoriesList.map((cat) => (
-                <SelectItem key={cat.slug} value={cat.slug}>
-                  {cat.name.en}
-                </SelectItem>
-              ))}
-              <SelectSeparator />
-              <SelectItem value="__create_new__" className="text-muted-foreground">
-                <div className="flex items-center gap-2">
-                  <Plus className="h-4 w-4" />
-                  <span>Manage Categories</span>
-                </div>
-              </SelectItem>
+            <SelectContent position="popper" className="max-h-80">
+              {mains.map((main) => {
+                const subs = subsOf(main.slug);
+                return subs.length === 0 ? (
+                  <SelectItem key={main.slug} value={main.slug}>
+                    {main.name.th}
+                  </SelectItem>
+                ) : (
+                  <SelectGroup key={main.slug}>
+                    <SelectLabel>{main.name.th}</SelectLabel>
+                    {subs.map((sub) => (
+                      <SelectItem key={sub.slug} value={sub.slug} className="pl-6">
+                        {sub.name.th}
+                      </SelectItem>
+                    ))}
+                    {main.slug === categorySlug && (
+                      // A product still sitting on the main category (e.g. moved from an old category)
+                      <SelectItem value={main.slug} className="pl-6 text-muted-foreground">
+                        {main.name.th} (no sub category)
+                      </SelectItem>
+                    )}
+                    <SelectSeparator />
+                  </SelectGroup>
+                );
+              })}
             </SelectContent>
           </Select>
           {errors?.categorySlug && (
@@ -172,23 +180,16 @@ export function ProductBasicInfoTab({
               {errors.categorySlug[0]}
             </p>
           )}
-          <p className="text-xs text-muted-foreground">
-            The product category for organization and filtering
-          </p>
-          <ManageCategoriesDialog
-            open={categoryDialogOpen}
-            onOpenChange={setCategoryDialogOpen}
-            categories={categoriesList}
-            selectedSlug={categorySlug}
-            onCreated={(newCat) => {
-              setCategoriesList([...categoriesList, newCat]);
-              onCategorySlugChange(newCat.slug);
-            }}
-            onDeleted={(deletedSlug) => {
-              setCategoriesList(categoriesList.filter((c) => c.slug !== deletedSlug));
-              if (categorySlug === deletedSlug) onCategorySlugChange("");
-            }}
-          />
+          {needsSub ? (
+            <p className="text-xs text-amber-600">Choose a sub category so the product gets all of its specs.</p>
+          ) : (
+            <p className="text-xs text-muted-foreground">
+              The category decides the product&apos;s specs.{" "}
+              <Link href="/admin/categories" target="_blank" className="text-primary hover:underline">
+                Manage categories →
+              </Link>
+            </p>
+          )}
         </div>
         <div className="space-y-2">
           <Label>Brand *</Label>

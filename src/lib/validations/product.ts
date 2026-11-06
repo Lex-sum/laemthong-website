@@ -18,7 +18,8 @@ export const productSchema = z.object({
   categorySlug: z.string().min(1, "Category is required"),
   brandSlug: z.string().min(1, "Brand is required"),
   images: z.string().optional(),
-  specifications: z.string().optional(),
+  /** JSON ProductSpecValues (attribute id → value) */
+  specValues: z.string().optional(),
   features: z.string().optional(),
   documents: z.string().optional(),
   featured: z.string().optional(),

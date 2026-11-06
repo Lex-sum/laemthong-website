@@ -8,6 +8,7 @@ import type {
   SpecBucket,
   SpecType,
 } from "@/data/types";
+import type { SpecValueRow } from "@/lib/spec-values";
 
 // ─── Rows / mapping ──────────────────────────────────────────────────────────
 
@@ -297,4 +298,45 @@ export async function adminReorderSpecAttributes(categorySlug: string, ids: stri
       .eq("category_slug", categorySlug);
     if (error) throw error;
   }
+}
+
+/** Specs a product in this category can have (main category's first). */
+export async function adminGetSpecsForCategory(
+  slug: string,
+  categories: Pick<DbCategory, "slug" | "parent_slug">[]
+): Promise<SpecAttribute[]> {
+  return fetchSpecs(createSupabaseAdminClient(), categoryChain(slug, categories));
+}
+
+export async function adminGetProductSpecValues(productSlug: string): Promise<ProductSpecValues> {
+  const { data, error } = await createSupabaseAdminClient()
+    .from("product_spec_values")
+    .select("attribute_id, option_id, number_value, bool_value, text_value")
+    .eq("product_slug", productSlug);
+  if (error) return {};
+  return toSpecValues(data as DbSpecValue[]);
+}
+
+/**
+ * Replaces a product's spec values. With `attributeIds`, only those specs are replaced
+ * (a partial import); without, every value of the product is replaced.
+ */
+export async function adminReplaceProductSpecValues(
+  productSlug: string,
+  rows: SpecValueRow[],
+  attributeIds?: string[]
+): Promise<void> {
+  const client = createSupabaseAdminClient();
+  let remove = client.from("product_spec_values").delete().eq("product_slug", productSlug);
+  if (attributeIds) {
+    if (attributeIds.length === 0) return;
+    remove = remove.in("attribute_id", attributeIds);
+  }
+  const { error } = await remove;
+  if (error) throw error;
+  if (rows.length === 0) return;
+  const { error: insertError } = await client
+    .from("product_spec_values")
+    .insert(rows.map((row) => ({ ...row, product_slug: productSlug })));
+  if (insertError) throw insertError;
 }

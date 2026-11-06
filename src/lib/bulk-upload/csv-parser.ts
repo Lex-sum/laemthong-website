@@ -1,5 +1,5 @@
 import Papa from "papaparse";
-import type { ParsedCsv, ParsedProductRow, ParsedSpecification, ParsedFeature } from "./types";
+import type { ParsedCsv, ParsedProductRow, ParsedFeature } from "./types";
 
 /**
  * Reads an uploaded CSV as text. Our exports are UTF-8 (with BOM), but Excel's plain
@@ -27,10 +27,6 @@ export const CSV_COLUMNS = [
   "description_th",
   "description_en",
   "featured",
-  "spec_labels_th",
-  "spec_labels_en",
-  "spec_values_th",
-  "spec_values_en",
   "features_th",
   "features_en",
 ] as const;
@@ -85,33 +81,8 @@ export function parseProductCSV(csvText: string): ParsedCsv {
     const cell = (column: string) =>
       columns.includes(column) ? (row[column]?.trim() ?? "") : undefined;
 
-    const specLabelsTh = cell("spec_labels_th");
-    const specLabelsEn = cell("spec_labels_en");
-    const specValuesTh = cell("spec_values_th");
-    const specValuesEn = cell("spec_values_en");
     const featuresTh = cell("features_th");
     const featuresEn = cell("features_en");
-
-    let parsedSpecifications: ParsedSpecification[] | undefined;
-    if ([specLabelsTh, specLabelsEn, specValuesTh, specValuesEn].some((v) => v !== undefined)) {
-      const labelsThArr = splitPipe(specLabelsTh);
-      const labelsEnArr = splitPipe(specLabelsEn);
-      const valuesThArr = splitPipe(specValuesTh);
-      const valuesEnArr = splitPipe(specValuesEn);
-      const specCount = Math.max(
-        labelsThArr.length,
-        labelsEnArr.length,
-        valuesThArr.length,
-        valuesEnArr.length
-      );
-      parsedSpecifications = [];
-      for (let i = 0; i < specCount; i++) {
-        parsedSpecifications.push({
-          label: { th: labelsThArr[i] || "", en: labelsEnArr[i] || "" },
-          value: { th: valuesThArr[i] || "", en: valuesEnArr[i] || "" },
-        });
-      }
-    }
 
     let parsedFeatures: ParsedFeature[] | undefined;
     if (featuresTh !== undefined || featuresEn !== undefined) {
@@ -138,13 +109,8 @@ export function parseProductCSV(csvText: string): ParsedCsv {
         descriptionTh: cell("description_th"),
         descriptionEn: cell("description_en"),
         featured: cell("featured"),
-        specLabelsTh,
-        specLabelsEn,
-        specValuesTh,
-        specValuesEn,
         featuresTh,
         featuresEn,
-        parsedSpecifications,
         parsedFeatures,
       },
     };

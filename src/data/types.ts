@@ -20,7 +20,6 @@ export interface ProductListItem {
 
 export interface Product extends ProductListItem {
   description: LocalizedString;
-  specifications: { label: LocalizedString; value: LocalizedString }[];
   features: LocalizedString[];
   documents?: { name: string; url: string }[];
 }
@@ -163,7 +162,6 @@ export interface DbProduct {
   short_description: LocalizedString;
   description: LocalizedString;
   images: string[];
-  specifications: { label: LocalizedString; value: LocalizedString }[];
   features: LocalizedString[];
   documents: { name: string; url: string }[];
   featured: boolean;

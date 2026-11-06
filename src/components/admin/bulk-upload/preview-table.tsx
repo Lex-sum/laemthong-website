@@ -195,12 +195,9 @@ export function PreviewTable({
                   </td>
                   <td className="px-4 py-3 text-sm text-muted-foreground">
                     {(() => {
-                      const specCount =
-                        row.row.data.parsedSpecifications?.length || 0;
                       const featCount =
                         row.row.data.parsedFeatures?.length || 0;
                       const parts: string[] = [];
-                      if (specCount > 0) parts.push(`${specCount} specs`);
                       if (featCount > 0) parts.push(`${featCount} feat.`);
                       return parts.length > 0 ? parts.join(", ") : "\u2014";
                     })()}

@@ -4,6 +4,7 @@ import {
   adminGetAllCategories,
   adminGetSapInfoForSlug,
 } from "@/lib/db/admin";
+import { adminGetAllSpecs } from "@/lib/db/taxonomy";
 import { ProductForm, type ProductFormDefaults } from "@/components/admin/product-form";
 import { AdminBreadcrumb } from "@/components/admin/admin-breadcrumb";
 import { AdminPageTitle } from "@/components/admin/admin-page-title";
@@ -19,10 +20,11 @@ type Props = {
 
 export default async function NewProductPage({ searchParams }: Props) {
   const { sapCode } = await searchParams;
-  const [brands, categories, sapInfo] = await Promise.all([
+  const [brands, categories, sapInfo, specs] = await Promise.all([
     adminGetAllBrands(),
     adminGetAllCategories(),
     typeof sapCode === "string" && sapCode ? adminGetSapInfoForSlug(sapCode) : undefined,
+    adminGetAllSpecs(),
   ]);
 
   // Started from "Products in SAP B1" → Add: pre-fill slug and short description
@@ -55,6 +57,7 @@ export default async function NewProductPage({ searchParams }: Props) {
             categories={categories}
             defaults={defaults}
             sapInfo={sapInfo}
+            specsByCategory={Object.fromEntries(specs)}
           />
         </div>
       </div>

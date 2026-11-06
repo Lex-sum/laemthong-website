@@ -46,7 +46,11 @@ export async function parseAndValidateAction(formData: FormData): Promise<{
     if (ignoredColumns.includes("sort_order")) {
       notices.push("Column sort_order is ignored — display order is set automatically (new products go last).");
     }
-    const otherIgnored = ignoredColumns.filter((c) => c !== "sort_order");
+    const oldSpecColumns = ignoredColumns.filter((c) => c.startsWith("spec_labels_") || c.startsWith("spec_values_"));
+    if (oldSpecColumns.length > 0) {
+      notices.push(`Old spec columns are ignored (${oldSpecColumns.join(", ")}) — specs now belong to the category and are set per product.`);
+    }
+    const otherIgnored = ignoredColumns.filter((c) => c !== "sort_order" && !oldSpecColumns.includes(c));
     if (otherIgnored.length > 0) {
       notices.push(`Unknown column${otherIgnored.length > 1 ? "s" : ""} ignored: ${otherIgnored.join(", ")}. Check the spelling if you meant to import ${otherIgnored.length > 1 ? "them" : "it"}.`);
     }
@@ -105,10 +109,6 @@ export async function downloadTemplateAction(): Promise<{ csv: string }> {
     "คำอธิบายยาว",
     "Long description here",
     "false",
-    "น้ำหนัก|แรงดันไฟฟ้า|กำลังไฟ",
-    "Weight|Voltage|Power",
-    "50 กก.|220V|3000 วัตต์",
-    "50 kg|220V|3000 W",
     "ประหยัดพลังงาน|ทนทาน",
     "Energy efficient|Durable",
   ]);
@@ -124,10 +124,6 @@ export async function downloadTemplateAction(): Promise<{ csv: string }> {
     "รายละเอียดเต็ม",
     "Full details",
     "true",
-    "",
-    "",
-    "",
-    "",
     "ใช้งานง่าย",
     "Easy to use",
   ]);
@@ -148,10 +144,6 @@ export async function exportProductsAction(): Promise<{
   }
 
   const rows = products.map((p) => {
-    const specs = (p.specifications || []) as {
-      label: { th: string; en: string };
-      value: { th: string; en: string };
-    }[];
     const feats = (p.features || []) as { th: string; en: string }[];
 
     return csvEscapeRow([
@@ -165,10 +157,6 @@ export async function exportProductsAction(): Promise<{
       (p.description as { th: string; en: string }).th,
       (p.description as { th: string; en: string }).en,
       String(p.featured),
-      specs.map((s) => s.label.th).join("|"),
-      specs.map((s) => s.label.en).join("|"),
-      specs.map((s) => s.value.th).join("|"),
-      specs.map((s) => s.value.en).join("|"),
       feats.map((f) => f.th).join("|"),
       feats.map((f) => f.en).join("|"),
     ]);

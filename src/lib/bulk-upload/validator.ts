@@ -14,17 +14,12 @@ function findClears(data: ParsedProductRow["data"], current: ProductImportSnapsh
   const blankOver = (column: string, value: string | undefined, currentValue: boolean) => {
     if (value === "" && currentValue) clears.push(column);
   };
-  const specs = current.specifications ?? [];
   const features = current.features ?? [];
   blankOver("name_en", data.nameEn, !!current.name.en);
   blankOver("short_description_en", data.shortDescriptionEn, !!current.short_description.en);
   blankOver("description_th", data.descriptionTh, !!current.description.th);
   blankOver("description_en", data.descriptionEn, !!current.description.en);
   blankOver("featured", data.featured, current.featured);
-  blankOver("spec_labels_th", data.specLabelsTh, specs.some((x) => x.label.th));
-  blankOver("spec_labels_en", data.specLabelsEn, specs.some((x) => x.label.en));
-  blankOver("spec_values_th", data.specValuesTh, specs.some((x) => x.value.th));
-  blankOver("spec_values_en", data.specValuesEn, specs.some((x) => x.value.en));
   blankOver("features_th", data.featuresTh, features.some((x) => x.th));
   blankOver("features_en", data.featuresEn, features.some((x) => x.en));
   return clears;
@@ -90,25 +85,6 @@ export async function validateProductRows(
       errors.push(`Duplicate slug '${data.slug}' in this file`);
     }
     seenSlugs.add(data.slug);
-
-    // Specification column count validation
-    if (data.specLabelsTh || data.specLabelsEn || data.specValuesTh || data.specValuesEn) {
-      const counts: Record<string, number> = {};
-      if (data.specLabelsTh) counts.spec_labels_th = data.specLabelsTh.split("|").length;
-      if (data.specLabelsEn) counts.spec_labels_en = data.specLabelsEn.split("|").length;
-      if (data.specValuesTh) counts.spec_values_th = data.specValuesTh.split("|").length;
-      if (data.specValuesEn) counts.spec_values_en = data.specValuesEn.split("|").length;
-
-      const entries = Object.entries(counts);
-      if (entries.length > 1) {
-        const firstCount = entries[0][1];
-        const hasMismatch = entries.some(([, v]) => v !== firstCount);
-        if (hasMismatch) {
-          const detail = entries.map(([col, count]) => `${col}: ${count}`).join(", ");
-          errors.push(`Specification column count mismatch (${detail})`);
-        }
-      }
-    }
 
     // Feature column count validation
     if (data.featuresTh && data.featuresEn) {

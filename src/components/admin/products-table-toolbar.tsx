@@ -97,14 +97,17 @@ export function ProductsTableToolbar({
           updateParams({ category: v === "all" ? null : v })
         }
       >
-        <SelectTrigger className="w-[160px]">
+        <SelectTrigger className="w-[200px]">
           <SelectValue placeholder="Category" />
         </SelectTrigger>
-        <SelectContent>
+        <SelectContent className="max-h-80">
           <SelectItem value="all">All categories</SelectItem>
+          <SelectItem value="_needs-sub" className="text-amber-600">
+            Needs sub category
+          </SelectItem>
           {categoryEntries.map(([slug, name]) => (
-            <SelectItem key={slug} value={slug}>
-              {name}
+            <SelectItem key={slug} value={slug} className={name.includes(" › ") ? "pl-6" : "font-medium"}>
+              {name.includes(" › ") ? name.split(" › ")[1] : name}
             </SelectItem>
           ))}
         </SelectContent>

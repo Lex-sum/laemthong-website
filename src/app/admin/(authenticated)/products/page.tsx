@@ -16,6 +16,8 @@ export const metadata: Metadata = {
   title: "Products",
 };
 
+const NEEDS_SUB = "_needs-sub";
+
 type Props = {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 };
@@ -27,6 +29,20 @@ export default async function AdminProductsPage({ searchParams }: Props) {
   const rawPageSize = params.pageSize ? Number(params.pageSize) : 20;
   const pageSize = ALLOWED_PAGE_SIZES.includes(rawPageSize) ? rawPageSize : 20;
 
+  const categories = await adminGetAllCategories();
+  const categoryParam = typeof params.category === "string" ? params.category : undefined;
+  const mainsWithSubs = categories
+    .filter((c) => !c.parent_slug && categories.some((s) => s.parent_slug === c.slug))
+    .map((c) => c.slug);
+  // A main category includes its sub categories; "_needs-sub" = products still sitting on a
+  // main category that has sub categories (e.g. moved from an old flat category)
+  const categoryFilter =
+    categoryParam === NEEDS_SUB
+      ? mainsWithSubs
+      : categoryParam
+        ? [categoryParam, ...categories.filter((c) => c.parent_slug === categoryParam).map((c) => c.slug)]
+        : undefined;
+
   const query: AdminProductsQuery = {
     page: params.page ? Number(params.page) : 1,
     pageSize,
@@ -36,20 +52,25 @@ export default async function AdminProductsPage({ searchParams }: Props) {
     overImageLimit: params.overImageLimit === "1",
     sap: params.sap === "in" || params.sap === "out" ? params.sap : undefined,
     missingEnglish: params.lang === "th-only",
+    categories: categoryFilter,
   };
 
-  const [result, brands, categories, overLimitCount] = await Promise.all([
+  const [result, brands, overLimitCount] = await Promise.all([
     adminGetProducts(query),
     adminGetAllBrands(),
-    adminGetAllCategories(),
     adminCountProductsOverImageLimit(),
   ]);
 
   const brandEntries: [string, string][] = brands.map((b) => [b.slug, b.name]);
-  const categoryEntries: [string, string][] = categories.map((c) => [
-    c.slug,
-    c.name.en,
-  ]);
+  // Main categories followed by their subs, labelled "Main › Sub"
+  const categoryEntries: [string, string][] = categories
+    .filter((c) => !c.parent_slug)
+    .flatMap((main) => [
+      [main.slug, main.name.th] as [string, string],
+      ...categories
+        .filter((c) => c.parent_slug === main.slug)
+        .map((sub) => [sub.slug, `${main.name.th} › ${sub.name.th}`] as [string, string]),
+    ]);
 
   return (
     <div className="space-y-6">

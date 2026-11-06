@@ -138,6 +138,7 @@ export function buildProductSchema(
   locale: Locale,
   brand?: Brand,
   category?: Category,
+  specs: { name: string; value: string }[] = [],
 ): Record<string, unknown> {
   return {
     "@context": "https://schema.org",
@@ -157,6 +158,13 @@ export function buildProductSchema(
     }),
     ...(category && {
       category: category.name[locale],
+    }),
+    ...(specs.length > 0 && {
+      additionalProperty: specs.map((spec) => ({
+        "@type": "PropertyValue",
+        name: spec.name,
+        value: spec.value,
+      })),
     }),
   };
 }
