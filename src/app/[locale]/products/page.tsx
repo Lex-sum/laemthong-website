@@ -11,7 +11,6 @@ import {
 } from "@/lib/db/cached";
 import { ProductSpecFilters } from "@/components/products/product-spec-filters";
 import { buildFilterGroups, hasSpecFilters, parseSpecFilters } from "@/lib/catalog-filters";
-import { redirect } from "@/i18n/navigation";
 import { ProductCard } from "@/components/products/product-card";
 import { ProductSearch } from "@/components/products/product-search";
 import { ProductFilterBar } from "@/components/products/product-filter-bar";
@@ -45,13 +44,6 @@ type Props = {
   }>;
 };
 
-// Categories of the old flat structure → where their products moved (taxonomy seed)
-const LEGACY_CATEGORIES: Record<string, string> = {
-  "flowmeter-regulator": "regulators-gas-control",
-  "safety-equipment": "safety-ppe",
-  machine: "welding-machines",
-  "equipment-consumable": "filler-metals",
-};
 
 export async function generateMetadata({ params, searchParams }: Props): Promise<Metadata> {
   const { locale } = await params;
@@ -130,14 +122,6 @@ export default async function ProductsPage({ params, searchParams }: Props) {
     getPageImage("hero-products"),
     category ? getCachedSpecsForCategory(category) : Promise.resolve([]),
   ]);
-
-  // Old flat category links → the category their products moved to
-  if (category && !categories.some((c) => c.slug === category)) {
-    const target = LEGACY_CATEGORIES[category];
-    if (target && categories.some((c) => c.slug === target)) {
-      redirect({ href: buildProductsUrl({ category: target, brand, q, view: viewParam }), locale });
-    }
-  }
 
   const { selection, conditions } = parseSpecFilters(sp, specs);
   const searchFilter = { category, brand, search: q, specFilters: conditions };

@@ -6,6 +6,16 @@ import { mustChangePassword } from "./lib/admin-roles";
 
 const intlMiddleware = createIntlMiddleware(routing);
 
+// Categories of the old flat structure → where their products are now.
+// Redirected here so search engines get a real permanent redirect (the products page
+// streams, so a redirect from the page itself can only be a client-side refresh).
+const LEGACY_CATEGORIES: Record<string, string> = {
+  "flowmeter-regulator": "welding-regulators",
+  "safety-equipment": "flashback-arrestors",
+  machine: "welding-machines",
+  "equipment-consumable": "filler-metals",
+};
+
 async function getSupabaseUser(request: NextRequest, response: NextResponse) {
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -59,6 +69,13 @@ export async function proxy(request: NextRequest) {
     }
 
     return response;
+  }
+
+  const legacyCategory = request.nextUrl.searchParams.get("category");
+  if (legacyCategory && LEGACY_CATEGORIES[legacyCategory] && /^\/(th|en)\/products\/?$/.test(pathname)) {
+    const url = request.nextUrl.clone();
+    url.searchParams.set("category", LEGACY_CATEGORIES[legacyCategory]);
+    return NextResponse.redirect(url, 308);
   }
 
   // All other routes — next-intl handles locale routing
