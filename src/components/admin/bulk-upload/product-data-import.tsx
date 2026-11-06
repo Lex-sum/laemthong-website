@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { UploadZone } from "@/components/admin/bulk-upload/upload-zone";
+import { UploadZone, type TemplateCategory } from "@/components/admin/bulk-upload/upload-zone";
 import { PreviewTable } from "@/components/admin/bulk-upload/preview-table";
 import { ResultsSummary } from "@/components/admin/bulk-upload/results-summary";
 import { parseAndValidateAction } from "@/app/admin/(authenticated)/bulk-upload/actions";
@@ -18,7 +18,7 @@ type Step = "upload" | "preview" | "importing" | "results";
 const MAX_CSV_BYTES = 4 * 1024 * 1024;
 
 /** Product Data tab: CSV → preview → import. Never changes product images. */
-export function ProductDataImport() {
+export function ProductDataImport({ categories }: { categories: TemplateCategory[] }) {
   const [step, setStep] = useState<Step>("upload");
   const [validatedRows, setValidatedRows] = useState<ClientValidationResult[]>(
     []
@@ -233,7 +233,7 @@ export function ProductDataImport() {
         )}
 
         {step === "upload" && (
-          <UploadZone onFileSelected={handleFileSelected} />
+          <UploadZone categories={categories} onFileSelected={handleFileSelected} />
         )}
 
         {step === "preview" && notices.length > 0 && (

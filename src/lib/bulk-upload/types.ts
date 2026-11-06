@@ -1,4 +1,5 @@
 import type { ProductImportSnapshot } from "@/lib/db/admin";
+import type { SpecValue } from "@/data/types";
 
 export type ParsedFeature = {
   th: string;
@@ -25,6 +26,11 @@ export type ParsedProductRow = {
     featuresEn?: string;
     // Parsed structured data (built from pipe-separated columns)
     parsedFeatures?: ParsedFeature[];
+    /**
+     * Spec cells by column name without "spec:" (e.g. "max-current", "size:en"). Only
+     * columns in the file are present; "" = blank cell (clears the value).
+     */
+    specCells: Record<string, string>;
   };
 };
 
@@ -42,6 +48,11 @@ export type ValidationResult = {
   row: ParsedProductRow;
   /** Current data of an existing product (server only — not sent to the browser) */
   current?: ProductImportSnapshot;
+  /**
+   * Spec values to write, by attribute id (server only): a value sets it, null clears it.
+   * Also clears values of specs that don't belong to a changed category.
+   */
+  specUpdates?: Record<string, SpecValue | null>;
   /** Whether the slug already exists (update) or is new (create) */
   action: "create" | "update";
   /** Columns whose current non-empty value this row will erase (updates only) */

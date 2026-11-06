@@ -6,6 +6,8 @@ import {
   type ProductImportSnapshot,
 } from "@/lib/db/admin";
 import { getNextSortOrder } from "@/lib/db/sort-order";
+import { adminReplaceProductSpecValues } from "@/lib/db/taxonomy";
+import { specValueRows } from "@/lib/spec-values";
 import type { DbProduct, LocalizedString } from "@/data/types";
 import { parseFeatured, splitPipe } from "./csv-parser";
 import type { ValidationResult, ImportOptions, ImportEvent, ParsedProductRow } from "./types";
@@ -125,8 +127,14 @@ export async function* importProducts(
         brandSlugs.add(data.brandSlug);
       }
 
+      // Only specs whose columns are in the file (plus values a category change drops)
+      const specUpdates = result.specUpdates ?? {};
+      const writeSpecs = () =>
+        adminReplaceProductSpecValues(data.slug, specValueRows(specUpdates), Object.keys(specUpdates));
+
       if (existing) {
         await adminUpdateProduct(data.slug, buildUpdate(data, existing));
+        await writeSpecs();
         stats.updated++;
         yield { type: "success", slug: data.slug, action: "updated" };
       } else {
@@ -147,6 +155,7 @@ export async function* importProducts(
           featured: parseFeatured(data.featured) === true,
           sort_order: nextSortOrder,
         });
+        await writeSpecs();
         nextSortOrder += 10;
         stats.created++;
         yield { type: "success", slug: data.slug, action: "created" };

@@ -2,7 +2,7 @@ import { revalidatePath } from "next/cache";
 import { getAdminUser } from "@/lib/auth";
 import { mustChangePassword } from "@/lib/admin-roles";
 import { logActivity } from "@/lib/activity";
-import { parseProductCSV, readCsvFile } from "@/lib/bulk-upload/csv-parser";
+import { parseProductFile } from "@/lib/bulk-upload/xlsx";
 import { validateProductRows } from "@/lib/bulk-upload/validator";
 import { importProducts } from "@/lib/bulk-upload/importer";
 import type { ImportOptions, ImportStats } from "@/lib/bulk-upload/types";
@@ -44,16 +44,9 @@ export async function POST(request: Request) {
     return Response.json({ error: "Invalid options" }, { status: 400 });
   }
 
-  let csvText: string;
-  try {
-    csvText = await readCsvFile(csvFile);
-  } catch {
-    return Response.json({ error: "Failed to read CSV file" }, { status: 400 });
-  }
-
   let parsedRows;
   try {
-    parsedRows = parseProductCSV(csvText).rows;
+    parsedRows = (await parseProductFile(csvFile)).rows;
   } catch (error) {
     const msg = error instanceof Error ? error.message : "Invalid CSV";
     return Response.json({ error: msg }, { status: 400 });

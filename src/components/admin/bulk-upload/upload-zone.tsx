@@ -1,33 +1,42 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import {
   Upload,
   FileText,
   Download,
   AlertTriangle,
+  Loader2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import {
   downloadTemplateAction,
   exportProductsAction,
-  getProductCountAction,
 } from "@/app/admin/(authenticated)/bulk-upload/actions";
 
+export type TemplateCategory = { slug: string; label: string; isSub: boolean };
+
 type UploadZoneProps = {
-  onFileSelected: (csvFile: File) => void;
+  categories: TemplateCategory[];
+  onFileSelected: (file: File) => void;
 };
 
-/** Product Data step 1: choose a CSV. Images are imported separately (Product Images tab). */
-export function UploadZone({ onFileSelected }: UploadZoneProps) {
-  const [csvFile, setCsvFile] = useState<File | null>(null);
-  const [isDragging, setIsDragging] = useState(false);
-  const [productCount, setProductCount] = useState<number | null>(null);
+const isProductFile = (name: string) => /\.(xlsx|csv)$/i.test(name);
 
-  useEffect(() => {
-    getProductCountAction().then(setProductCount);
-  }, []);
+/** Product Data step 1: choose an Excel / CSV file. Images are imported separately (Product Images tab). */
+export function UploadZone({ categories, onFileSelected }: UploadZoneProps) {
+  const [csvFile, setCsvFile] = useState<File | null>(null);
+  const [templateCategory, setTemplateCategory] = useState("");
+  const [downloading, setDownloading] = useState<"template" | "export" | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -44,8 +53,8 @@ export function UploadZone({ onFileSelected }: UploadZoneProps) {
     setIsDragging(false);
 
     const files = Array.from(e.dataTransfer.files);
-    const csv = files.find((f) => f.name.toLowerCase().endsWith(".csv"));
-    if (csv) setCsvFile(csv);
+    const file = files.find((f) => isProductFile(f.name));
+    if (file) setCsvFile(file);
   }, []);
 
   const handleCsvChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -58,9 +67,11 @@ export function UploadZone({ onFileSelected }: UploadZoneProps) {
     if (csvFile) onFileSelected(csvFile);
   };
 
-  const downloadCsv = (csv: string, filename: string) => {
-    // UTF-8 BOM so Excel reads Thai correctly (without it Excel guesses the Windows codepage)
-    const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8" });
+  const downloadXlsx = (base64: string, filename: string) => {
+    const bytes = Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));
+    const blob = new Blob([bytes], {
+      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
@@ -71,15 +82,17 @@ export function UploadZone({ onFileSelected }: UploadZoneProps) {
     URL.revokeObjectURL(url);
   };
 
-  const handleDownloadTemplate = async () => {
-    const { csv } = await downloadTemplateAction();
-    downloadCsv(csv, "products-template.csv");
-  };
-
-  const handleExportProducts = async () => {
-    const { csv } = await exportProductsAction();
-    if (csv) {
-      downloadCsv(csv, "products-export.csv");
+  const download = async (kind: "template" | "export") => {
+    if (!templateCategory) return;
+    setDownloading(kind);
+    try {
+      const result =
+        kind === "template"
+          ? await downloadTemplateAction(templateCategory)
+          : await exportProductsAction(templateCategory);
+      if (result.base64 && result.filename) downloadXlsx(result.base64, result.filename);
+    } finally {
+      setDownloading(null);
     }
   };
 
@@ -91,20 +104,55 @@ export function UploadZone({ onFileSelected }: UploadZoneProps) {
 
   return (
     <div className="space-y-6">
-      {/* Quick Start */}
-      <div className="rounded-lg border bg-muted/50 p-4 text-sm">
-        <p className="font-medium">Quick Start</p>
-        <p className="text-muted-foreground mt-1">
-          Click <strong>Download Template</strong> to get a CSV with the
-          expected format and example rows. Fill it in, upload here, and
-          preview before importing.
-        </p>
+      {/* Template / export per category: the spec columns depend on the category */}
+      <div className="space-y-3 rounded-lg border bg-muted/50 p-4 text-sm">
+        <div>
+          <p className="font-medium">1. Get the Excel file for a category</p>
+          <p className="mt-1 text-muted-foreground">
+            The file has a column for each spec of the category, with dropdowns for the allowed
+            values. A main category&apos;s file covers all of its sub categories.{" "}
+            <strong>Export</strong> gives the same file filled with the current products — edit it
+            and upload it back.
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <Select value={templateCategory} onValueChange={setTemplateCategory}>
+            <SelectTrigger className="w-72 bg-background">
+              <SelectValue placeholder="Choose a category" />
+            </SelectTrigger>
+            <SelectContent className="max-h-80">
+              {categories.map((c) => (
+                <SelectItem key={c.slug} value={c.slug} className={c.isSub ? "pl-6" : "font-medium"}>
+                  {c.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Button
+            variant="outline"
+            onClick={() => download("template")}
+            disabled={!templateCategory || !!downloading}
+            className="gap-2 bg-background"
+          >
+            {downloading === "template" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+            Download Template
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => download("export")}
+            disabled={!templateCategory || !!downloading}
+            className="gap-2 bg-background"
+          >
+            {downloading === "export" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+            Export Products
+          </Button>
+        </div>
       </div>
 
-      {/* CSV Upload */}
+      {/* File upload */}
       <div>
         <label className="block text-sm font-medium mb-2">
-          Product Data (CSV)
+          2. Upload the filled-in file (Excel .xlsx or CSV)
         </label>
         <div
           className={cn(
@@ -119,7 +167,7 @@ export function UploadZone({ onFileSelected }: UploadZoneProps) {
         >
           <input
             type="file"
-            accept=".csv"
+            accept=".xlsx,.csv"
             onChange={handleCsvChange}
             className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
           />
@@ -133,9 +181,9 @@ export function UploadZone({ onFileSelected }: UploadZoneProps) {
             </div>
           ) : (
             <div>
-              <p className="font-medium">Drop CSV file here or click to browse</p>
+              <p className="font-medium">Drop the file here or click to browse</p>
               <p className="text-sm text-muted-foreground mt-1">
-                CSV format with product data
+                Excel (.xlsx) from the template, or CSV
               </p>
             </div>
           )}
@@ -143,29 +191,7 @@ export function UploadZone({ onFileSelected }: UploadZoneProps) {
       </div>
 
       {/* Actions */}
-      <div className="flex items-center justify-between gap-4">
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            onClick={handleDownloadTemplate}
-            className="gap-2"
-          >
-            <Download className="h-4 w-4" />
-            Download Template
-          </Button>
-          <Button
-            variant="outline"
-            onClick={handleExportProducts}
-            disabled={productCount === 0}
-            className="gap-2"
-          >
-            <Download className="h-4 w-4" />
-            {productCount !== null && productCount > 0
-              ? `Export Products (${productCount})`
-              : "Export Products"}
-          </Button>
-        </div>
-
+      <div className="flex items-center justify-end gap-4">
         <Button
           onClick={handleSubmit}
           disabled={!csvFile}
@@ -188,7 +214,7 @@ export function UploadZone({ onFileSelected }: UploadZoneProps) {
         <div>
           <p className="font-medium text-foreground">Images</p>
           <p className="mt-1">
-            This CSV never adds, changes or removes product images &mdash; re-importing data
+            This import never adds, changes or removes product images &mdash; re-importing data
             keeps existing images. Upload images in the <strong>Product Images</strong> tab after
             the products exist.
           </p>
@@ -220,7 +246,7 @@ export function UploadZone({ onFileSelected }: UploadZoneProps) {
 
         <div>
           <p className="font-medium text-foreground">
-            CSV Columns &mdash; Required
+            Columns &mdash; Required
           </p>
           <div className="mt-1 rounded border bg-muted/30 p-3 font-mono text-xs leading-relaxed">
             slug &mdash; Unique ID (lowercase letters, numbers, dashes only)
@@ -237,7 +263,7 @@ export function UploadZone({ onFileSelected }: UploadZoneProps) {
 
         <div>
           <p className="font-medium text-foreground">
-            CSV Columns &mdash; Optional
+            Columns &mdash; Optional
           </p>
           <div className="mt-1 rounded border bg-muted/30 p-3 font-mono text-xs leading-relaxed">
             name_en, short_description_en &mdash; English (without them the English site
@@ -249,7 +275,16 @@ export function UploadZone({ onFileSelected }: UploadZoneProps) {
             featured &mdash; true/false, 1/0 or yes/no (blank = false)
             <br />
             features_th, features_en &mdash; Pipe-separated feature list
+            <br />
+            spec:&lt;key&gt; &mdash; One column per spec of the category (the template has them,
+            with the names in the header notes and allowed values on the Guide sheet)
           </div>
+          <p className="mt-2">
+            Spec values: choose from the dropdown (or type the value&apos;s Thai / English name),
+            separate several values with <code className="text-xs bg-muted px-1 py-0.5 rounded">|</code>,
+            numbers may include the unit (<code className="text-xs bg-muted px-1 py-0.5 rounded">200 A</code>),
+            yes / no as มี / ไม่มี. A spec that doesn&apos;t belong to the row&apos;s category is an error.
+          </p>
           <p className="mt-2">
             Use <code className="text-xs bg-muted px-1 py-0.5 rounded">|</code>{" "}
             (pipe) to separate items, e.g.{" "}

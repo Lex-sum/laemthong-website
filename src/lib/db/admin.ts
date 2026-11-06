@@ -272,7 +272,7 @@ export async function adminGetProductCount(): Promise<number> {
 
 export type ProductImportSnapshot = Pick<
   DbProduct,
-  "slug" | "name" | "short_description" | "description" | "features" | "featured"
+  "slug" | "category_slug" | "name" | "short_description" | "description" | "features" | "featured"
 >;
 
 /** Current data of the given products (for bulk import checks); missing slugs are left out. */
@@ -286,7 +286,7 @@ export async function adminGetProductsBySlugs(
   for (let i = 0; i < unique.length; i += chunkSize) {
     const { data, error } = await supabase
       .from("products")
-      .select("slug,name,short_description,description,features,featured")
+      .select("slug,category_slug,name,short_description,description,features,featured")
       .in("slug", unique.slice(i, i + chunkSize));
     if (error) throw error;
     products.push(...((data ?? []) as ProductImportSnapshot[]));

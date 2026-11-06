@@ -5,12 +5,24 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ProductDataImport } from "@/components/admin/bulk-upload/product-data-import";
 import { ProductImagesImport } from "@/components/admin/bulk-upload/product-images-import";
+import { adminGetAllCategories } from "@/lib/db/admin";
 
 export const metadata: Metadata = {
   title: "Bulk Upload",
 };
 
-export default function BulkUploadPage() {
+export default async function BulkUploadPage() {
+  const all = await adminGetAllCategories();
+  // Template / export choices: main categories, each followed by its sub categories
+  const categories = all
+    .filter((c) => !c.parent_slug)
+    .flatMap((main) => [
+      { slug: main.slug, label: main.name.th, isSub: false },
+      ...all
+        .filter((c) => c.parent_slug === main.slug)
+        .map((sub) => ({ slug: sub.slug, label: sub.name.th, isSub: true })),
+    ]);
+
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-3">
@@ -32,12 +44,12 @@ export default function BulkUploadPage() {
 
       <Tabs defaultValue="data" className="space-y-4">
         <TabsList>
-          <TabsTrigger value="data">1. Product Data (CSV)</TabsTrigger>
+          <TabsTrigger value="data">1. Product Data (Excel / CSV)</TabsTrigger>
           <TabsTrigger value="images">2. Product Images</TabsTrigger>
         </TabsList>
         {/* forceMount keeps each tab's progress when switching tabs */}
         <TabsContent value="data" forceMount className="data-[state=inactive]:hidden">
-          <ProductDataImport />
+          <ProductDataImport categories={categories} />
         </TabsContent>
         <TabsContent value="images" forceMount className="data-[state=inactive]:hidden">
           <ProductImagesImport />

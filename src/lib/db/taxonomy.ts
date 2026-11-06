@@ -340,3 +340,21 @@ export async function adminReplaceProductSpecValues(
     .insert(rows.map((row) => ({ ...row, product_slug: productSlug })));
   if (insertError) throw insertError;
 }
+
+/** Current spec values of the given products (for bulk import checks). */
+export async function adminGetSpecValuesForProducts(slugs: string[]): Promise<Map<string, ProductSpecValues>> {
+  const client = createSupabaseAdminClient();
+  const unique = [...new Set(slugs.filter(Boolean))];
+  const bySlug = new Map<string, DbSpecValue[]>();
+  for (let i = 0; i < unique.length; i += 200) {
+    const { data, error } = await client
+      .from("product_spec_values")
+      .select("product_slug, attribute_id, option_id, number_value, bool_value, text_value")
+      .in("product_slug", unique.slice(i, i + 200));
+    if (error) throw error;
+    for (const row of (data ?? []) as (DbSpecValue & { product_slug: string })[]) {
+      bySlug.set(row.product_slug, [...(bySlug.get(row.product_slug) ?? []), row]);
+    }
+  }
+  return new Map([...bySlug].map(([slug, rows]) => [slug, toSpecValues(rows)]));
+}

@@ -1,9 +1,15 @@
 "use server";
 
 import { requireAdmin } from "@/lib/auth";
-import { CSV_COLUMNS, parseProductCSV, readCsvFile } from "@/lib/bulk-upload/csv-parser";
+import { CSV_COLUMNS } from "@/lib/bulk-upload/csv-parser";
 import { validateProductRows } from "@/lib/bulk-upload/validator";
-import { adminGetProductsForExport, adminGetProductCount } from "@/lib/db/admin";
+import { buildProductWorkbook, parseProductFile } from "@/lib/bulk-upload/xlsx";
+import {
+  adminGetAllBrands,
+  adminGetAllCategories,
+  adminGetProductsForExport,
+} from "@/lib/db/admin";
+import { adminGetAllSpecs, adminGetSpecValuesForProducts } from "@/lib/db/taxonomy";
 import type {
   ClientValidationResult,
   ValidationStats,
@@ -23,12 +29,10 @@ export async function parseAndValidateAction(formData: FormData): Promise<{
   try {
     const csvFile = formData.get("csv") as File | null;
     if (!csvFile) {
-      return { success: false, error: "A CSV file is required" };
+      return { success: false, error: "An Excel or CSV file is required" };
     }
 
-    const { rows: parsedRows, columns, ignoredColumns } = parseProductCSV(
-      await readCsvFile(csvFile)
-    );
+    const { rows: parsedRows, columns, ignoredColumns } = await parseProductFile(csvFile);
     if (parsedRows.length === 0) {
       return { success: false, error: "CSV file is empty or invalid" };
     }
@@ -82,94 +86,56 @@ export async function parseAndValidateAction(formData: FormData): Promise<{
   }
 }
 
-function csvEscapeRow(values: string[]): string {
-  return values
-    .map((v) => {
-      if (v.includes(",") || v.includes('"') || v.includes("\n")) {
-        return `"${v.replace(/"/g, '""')}"`;
-      }
-      return v;
-    })
-    .join(",");
+/** The category, its main category (if a sub) and its sub categories (if a main). */
+async function categoryFamily(slug: string) {
+  const all = await adminGetAllCategories();
+  const category = all.find((c) => c.slug === slug);
+  if (!category) return null;
+  const family = category.parent_slug ? [category] : [category, ...all.filter((c) => c.parent_slug === slug)];
+  const specsByCategory = await adminGetAllSpecs();
+  const specs = [
+    ...(category.parent_slug ? specsByCategory.get(category.parent_slug) ?? [] : []),
+    ...family.flatMap((c) => specsByCategory.get(c.slug) ?? []),
+  ];
+  return { category, family, specs };
 }
 
-const CSV_HEADERS = CSV_COLUMNS;
+type WorkbookResult = { base64?: string; filename?: string; count?: number; error?: string };
 
-export async function downloadTemplateAction(): Promise<{ csv: string }> {
+/** Excel template for a category: its columns, spec columns and dropdowns. */
+export async function downloadTemplateAction(categorySlug: string): Promise<WorkbookResult> {
   await requireAdmin();
-
-  const row1 = csvEscapeRow([
-    "example-product-1",
-    "welding-machines",
-    "lincoln-electric",
-    "ชื่อผลิตภัณฑ์",
-    "Product Name",
-    "คำอธิบายสั้น",
-    "Short description here",
-    "คำอธิบายยาว",
-    "Long description here",
-    "false",
-    "ประหยัดพลังงาน|ทนทาน",
-    "Energy efficient|Durable",
-  ]);
-
-  const row2 = csvEscapeRow([
-    "example-product-2",
-    "cutting-equipment",
-    "harris",
-    "ชื่อสินค้า",
-    "Another Product",
-    "รายละเอียดย่อ",
-    "Brief details",
-    "รายละเอียดเต็ม",
-    "Full details",
-    "true",
-    "ใช้งานง่าย",
-    "Easy to use",
-  ]);
-
-  return { csv: `${CSV_HEADERS.join(",")}\n${row1}\n${row2}` };
-}
-
-export async function exportProductsAction(): Promise<{
-  csv: string | null;
-  count: number;
-}> {
-  await requireAdmin();
-
-  const products = await adminGetProductsForExport();
-
-  if (products.length === 0) {
-    return { csv: null, count: 0 };
-  }
-
-  const rows = products.map((p) => {
-    const feats = (p.features || []) as { th: string; en: string }[];
-
-    return csvEscapeRow([
-      p.slug,
-      p.category_slug,
-      p.brand_slug,
-      (p.name as { th: string; en: string }).th,
-      (p.name as { th: string; en: string }).en,
-      (p.short_description as { th: string; en: string }).th,
-      (p.short_description as { th: string; en: string }).en,
-      (p.description as { th: string; en: string }).th,
-      (p.description as { th: string; en: string }).en,
-      String(p.featured),
-      feats.map((f) => f.th).join("|"),
-      feats.map((f) => f.en).join("|"),
-    ]);
+  const found = await categoryFamily(categorySlug);
+  if (!found) return { error: "Category not found" };
+  const buffer = await buildProductWorkbook({
+    category: found.category,
+    categories: found.family,
+    brands: await adminGetAllBrands(),
+    specs: found.specs,
   });
+  return { base64: buffer.toString("base64"), filename: `products-template-${categorySlug}.xlsx` };
+}
 
+/** Excel export of a category's products (a main category includes its subs), same layout. */
+export async function exportProductsAction(categorySlug: string): Promise<WorkbookResult> {
+  await requireAdmin();
+  const found = await categoryFamily(categorySlug);
+  if (!found) return { error: "Category not found" };
+  const slugs = new Set(found.family.map((c) => c.slug));
+  const products = (await adminGetProductsForExport()).filter((p) => slugs.has(p.category_slug));
+  const values = await adminGetSpecValuesForProducts(products.map((p) => p.slug));
+  const buffer = await buildProductWorkbook({
+    category: found.category,
+    categories: found.family,
+    brands: await adminGetAllBrands(),
+    specs: found.specs,
+    products: products.map((product) => ({ product, values: values.get(product.slug) ?? {} })),
+  });
   return {
-    csv: [CSV_HEADERS.join(","), ...rows].join("\n"),
+    base64: buffer.toString("base64"),
+    filename: `products-${categorySlug}.xlsx`,
     count: products.length,
   };
 }
 
-export async function getProductCountAction(): Promise<number> {
-  await requireAdmin();
 
-  return adminGetProductCount();
-}

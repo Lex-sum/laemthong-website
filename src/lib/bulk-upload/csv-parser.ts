@@ -41,17 +41,15 @@ export const REQUIRED_CSV_COLUMNS = [
 
 const KNOWN = new Set<string>(CSV_COLUMNS);
 
+/** Spec columns: `spec:<spec key>` (and `spec:<key>:en` for the English of a text spec) */
+export const SPEC_COLUMN_PREFIX = "spec:";
+
 export function splitPipe(value: string | undefined): string[] {
   if (!value) return [];
   return value.split("|").map((s) => s.trim());
 }
 
-/**
- * Parses a product CSV by header name: columns can be in any order and optional columns
- * can be left out. A column that is not in the file is skipped (existing products keep
- * their value); a column in the file sets the value, so a blank cell clears it.
- * Throws if a required column is missing from the header.
- */
+/** Parses a product CSV (see parseProductRecords). */
 export function parseProductCSV(csvText: string): ParsedCsv {
   const result = Papa.parse<Record<string, string>>(csvText, {
     header: true,
@@ -65,7 +63,17 @@ export function parseProductCSV(csvText: string): ParsedCsv {
     throw new Error(`CSV parsing error: ${fatal.map((e) => e.message).join(", ")}`);
   }
 
-  const columns = (result.meta.fields ?? []).filter(Boolean);
+  return parseProductRecords(result.data, (result.meta.fields ?? []).filter(Boolean));
+}
+
+/**
+ * Turns spreadsheet rows (CSV or Excel) into product rows, by header name: columns can
+ * be in any order and optional columns can be left out. A column that is not in the file
+ * is skipped (existing products keep their value); a column in the file sets the value,
+ * so a blank cell clears it. Header names are expected trimmed and lowercase.
+ * Throws if a required column is missing from the header.
+ */
+export function parseProductRecords(records: Record<string, string>[], columns: string[]): ParsedCsv {
   const missing = REQUIRED_CSV_COLUMNS.filter((c) => !columns.includes(c));
   if (missing.length > 0) {
     throw new Error(
@@ -74,12 +82,13 @@ export function parseProductCSV(csvText: string): ParsedCsv {
     );
   }
 
-  const ignoredColumns = columns.filter((c) => !KNOWN.has(c));
+  const specColumns = columns.filter((c) => c.startsWith(SPEC_COLUMN_PREFIX) && c.length > SPEC_COLUMN_PREFIX.length);
+  const ignoredColumns = columns.filter((c) => !KNOWN.has(c) && !specColumns.includes(c));
 
-  const rows: ParsedProductRow[] = result.data.map((row, index) => {
+  const rows: ParsedProductRow[] = records.map((row, index) => {
     // undefined = column not in the file (skip), "" = blank cell (clear)
     const cell = (column: string) =>
-      columns.includes(column) ? (row[column]?.trim() ?? "") : undefined;
+      columns.includes(column) ? (String(row[column] ?? "").trim()) : undefined;
 
     const featuresTh = cell("features_th");
     const featuresEn = cell("features_en");
@@ -96,7 +105,7 @@ export function parseProductCSV(csvText: string): ParsedCsv {
     }
 
     return {
-      // CSV line number (header is line 1)
+      // Line number in the file (header is line 1)
       index: index + 2,
       data: {
         slug: cell("slug") ?? "",
@@ -112,6 +121,9 @@ export function parseProductCSV(csvText: string): ParsedCsv {
         featuresTh,
         featuresEn,
         parsedFeatures,
+        specCells: Object.fromEntries(
+          specColumns.map((c) => [c.slice(SPEC_COLUMN_PREFIX.length), String(row[c] ?? "").trim()])
+        ),
       },
     };
   });
