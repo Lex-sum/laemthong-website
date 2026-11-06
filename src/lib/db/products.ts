@@ -1,17 +1,31 @@
 import { createSupabaseClient } from "@/lib/supabase";
 import type { Product, ProductListItem, DbProduct, Locale } from "@/data/types";
 import { fillDescription, fillEnglish, hasEnglish } from "@/lib/product-locale";
+import type { FacetRow, SpecFilterCondition } from "@/lib/catalog-filters";
 
 const LISTING_COLUMNS = "slug, category_slug, brand_slug, name, short_description, images, featured, sort_order" as const;
 
 export type ProductFilter = {
+  /** A main category includes its sub categories */
   category?: string;
   brand?: string;
   search?: string;
   locale?: Locale;
   page?: number;
   perPage?: number;
+  /** Spec filters by attribute id (see lib/catalog-filters) */
+  specFilters?: Record<string, SpecFilterCondition>;
 };
+
+/** search_products arguments; the search text is matched with ILIKE, so escape % _ \ */
+function searchArgs(filter: Pick<ProductFilter, "category" | "brand" | "search" | "specFilters">) {
+  return {
+    p_category: filter.category || null,
+    p_brand: filter.brand || null,
+    p_search: filter.search ? filter.search.replace(/[%_\\]/g, "\\$&") : null,
+    p_filters: filter.specFilters ?? {},
+  };
+}
 
 export type PaginatedProducts = {
   products: ProductListItem[];
@@ -66,48 +80,32 @@ export async function getAllProducts(): Promise<Product[]> {
 }
 
 export async function getFilteredProducts(filter: ProductFilter = {}): Promise<PaginatedProducts> {
-  const supabase = createSupabaseClient();
-  const {
-    category,
-    brand,
-    search,
-    page = 1,
-    perPage = 24,
-  } = filter;
-
-  let query = supabase
-    .from("products")
-    .select(LISTING_COLUMNS, { count: "exact" });
-
-  if (category) query = query.eq("category_slug", category);
-  if (brand) query = query.eq("brand_slug", brand);
-
-  if (search) {
-    const escaped = search.replace(/[%_\\]/g, "\\$&");
-    const pattern = `%${escaped}%`;
-    query = query.or(
-      `name->>th.ilike.${pattern},name->>en.ilike.${pattern},short_description->>th.ilike.${pattern},short_description->>en.ilike.${pattern}`
-    );
-  }
-
-  query = query.order("sort_order", { ascending: true });
-
+  const { page = 1, perPage = 24 } = filter;
   const from = (page - 1) * perPage;
-  const to = from + perPage - 1;
-  query = query.range(from, to);
-
-  const { data, error, count } = await query;
+  const { data, error, count } = await createSupabaseClient()
+    .rpc("search_products", searchArgs(filter), { count: "exact" })
+    .select(LISTING_COLUMNS)
+    .order("sort_order", { ascending: true })
+    .order("slug", { ascending: true })
+    .range(from, from + perPage - 1);
 
   if (error) return { products: [], total: 0, page, perPage, totalPages: 0 };
 
   const total = count ?? 0;
   return {
-    products: (data as DbProduct[]).map(toProductListItem),
+    products: (data as unknown as DbProduct[]).map(toProductListItem),
     total,
     page,
     perPage,
     totalPages: Math.ceil(total / perPage),
   };
+}
+
+/** Product counts for each filter choice of a category (each spec ignores its own filter). */
+export async function getProductFacets(filter: ProductFilter & { category: string }): Promise<FacetRow[]> {
+  const { data, error } = await createSupabaseClient().rpc("product_facets", searchArgs(filter));
+  if (error) return [];
+  return data as FacetRow[];
 }
 
 export async function getProductBySlug(slug: string): Promise<Product | undefined> {

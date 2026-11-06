@@ -2,6 +2,7 @@
 
 import { useFilterNavigation } from "./products-filter-context";
 import { buildProductsUrl } from "@/lib/url-builders";
+import type { SpecFilterSelection } from "@/lib/catalog-filters";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 
 type BaseParams = {
@@ -9,6 +10,7 @@ type BaseParams = {
   brand?: string;
   q?: string;
   view?: string;
+  filters?: SpecFilterSelection;
 };
 
 type Props = {

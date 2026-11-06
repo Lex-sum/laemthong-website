@@ -2,7 +2,16 @@ import { Suspense } from "react";
 import type { Metadata } from "next";
 import { setRequestLocale, getTranslations } from "next-intl/server";
 import { getCategoryBySlug, getBrandBySlug, getPageImage } from "@/lib/db";
-import { getCachedCategories, getCachedBrands, getCachedFilteredProducts } from "@/lib/db/cached";
+import {
+  getCachedCategories,
+  getCachedBrands,
+  getCachedFilteredProducts,
+  getCachedProductFacets,
+  getCachedSpecsForCategory,
+} from "@/lib/db/cached";
+import { ProductSpecFilters } from "@/components/products/product-spec-filters";
+import { buildFilterGroups, hasSpecFilters, parseSpecFilters } from "@/lib/catalog-filters";
+import { redirect } from "@/i18n/navigation";
 import { ProductCard } from "@/components/products/product-card";
 import { ProductSearch } from "@/components/products/product-search";
 import { ProductFilterBar } from "@/components/products/product-filter-bar";
@@ -31,12 +40,25 @@ type Props = {
     q?: string;
     page?: string;
     view?: string;
+    // plus spec filters: f.<spec key>=<value>,<value>
+    [filter: string]: string | string[] | undefined;
   }>;
+};
+
+// Categories of the old flat structure → where their products moved (taxonomy seed)
+const LEGACY_CATEGORIES: Record<string, string> = {
+  "flowmeter-regulator": "regulators-gas-control",
+  "safety-equipment": "safety-ppe",
+  machine: "welding-machines",
+  "equipment-consumable": "filler-metals",
 };
 
 export async function generateMetadata({ params, searchParams }: Props): Promise<Metadata> {
   const { locale } = await params;
-  const { category, brand } = await searchParams;
+  const sp = await searchParams;
+  const { category, brand } = sp;
+  const category_ = typeof category === "string" ? category : undefined;
+  const brand_ = typeof brand === "string" ? brand : undefined;
   const loc = locale as Locale;
   const t = await getTranslations({ locale, namespace: "products" });
 
@@ -44,21 +66,21 @@ export async function generateMetadata({ params, searchParams }: Props): Promise
   let description = t("description");
   let pagePath = "/products";
 
-  if (category) {
-    const cat = await getCategoryBySlug(category);
+  if (category_) {
+    const cat = await getCategoryBySlug(category_);
     if (cat) {
       title = `${cat.name[loc]} — ${t("title")}`;
       description = loc === "th"
         ? `เลือกซื้อ${cat.name.th} — สินค้าอุตสาหกรรมคุณภาพจากแบรนด์ชั้นนำ จัดจำหน่ายโดย แหลมทอง`
         : `Browse ${cat.name.en} — quality industrial products from leading brands, distributed by Laemthong.`;
-      pagePath = `/products?category=${category}`;
+      pagePath = `/products?category=${category_}`;
     }
-  } else if (brand) {
-    const br = await getBrandBySlug(brand);
+  } else if (brand_) {
+    const br = await getBrandBySlug(brand_);
     if (br) {
       title = `${br.name} — ${t("title")}`;
       description = br.description[loc] || description;
-      pagePath = `/products?brand=${brand}`;
+      pagePath = `/products?brand=${brand_}`;
     }
   }
 
@@ -66,6 +88,9 @@ export async function generateMetadata({ params, searchParams }: Props): Promise
   return {
     title,
     description,
+    // Spec-filtered views are endless combinations of the category page: keep them out of
+    // the index (links are still followed); the canonical points to the category page
+    ...(hasSpecFilters(sp) ? { robots: { index: false, follow: true } } : {}),
     alternates: {
       canonical: pageUrl,
       languages: getAlternateLanguages("/products"),
@@ -84,7 +109,13 @@ export async function generateMetadata({ params, searchParams }: Props): Promise
 
 export default async function ProductsPage({ params, searchParams }: Props) {
   const { locale } = await params;
-  const { category, brand, q, page: pageParam, view: viewParam } = await searchParams;
+  const sp = await searchParams;
+  const str = (v: string | string[] | undefined) => (typeof v === "string" ? v : undefined);
+  const category = str(sp.category);
+  const brand = str(sp.brand);
+  const q = str(sp.q);
+  const pageParam = str(sp.page);
+  const viewParam = str(sp.view);
   setRequestLocale(locale);
   const t = await getTranslations({ locale, namespace: "products" });
   const loc = locale as Locale;
@@ -93,19 +124,28 @@ export default async function ProductsPage({ params, searchParams }: Props) {
   const pageNum = Math.min(MAX_PAGE, Math.max(1, parseInt(pageParam ?? "1", 10) || 1));
   const view = viewParam === "list" ? "list" : "grid";
 
-  const [result, categories, brands, heroImage] = await Promise.all([
-    getCachedFilteredProducts({
-      category,
-      brand,
-      search: q,
-      locale: loc,
-      page: pageNum,
-      perPage: 24,
-    }),
+  const [categories, brands, heroImage, specs] = await Promise.all([
     getCachedCategories(),
     getCachedBrands(),
     getPageImage("hero-products"),
+    category ? getCachedSpecsForCategory(category) : Promise.resolve([]),
   ]);
+
+  // Old flat category links → the category their products moved to
+  if (category && !categories.some((c) => c.slug === category)) {
+    const target = LEGACY_CATEGORIES[category];
+    if (target && categories.some((c) => c.slug === target)) {
+      redirect({ href: buildProductsUrl({ category: target, brand, q, view: viewParam }), locale });
+    }
+  }
+
+  const { selection, conditions } = parseSpecFilters(sp, specs);
+  const searchFilter = { category, brand, search: q, specFilters: conditions };
+  const [result, facets] = await Promise.all([
+    getCachedFilteredProducts({ ...searchFilter, locale: loc, page: pageNum, perPage: 24 }),
+    category ? getCachedProductFacets({ ...searchFilter, category }) : Promise.resolve([]),
+  ]);
+  const filterGroups = buildFilterGroups(specs, facets, selection, loc);
 
   const { products, total, totalPages: rawTotalPages } = result;
   const totalPages = Math.min(MAX_PAGE, rawTotalPages);
@@ -161,23 +201,35 @@ export default async function ProductsPage({ params, searchParams }: Props) {
 
                     <ViewToggle
                       currentView={view}
-                      gridUrl={buildProductsUrl({ category, brand, q, page: pageNum, view: "grid" })}
-                      listUrl={buildProductsUrl({ category, brand, q, page: pageNum, view: "list" })}
+                      gridUrl={buildProductsUrl({ category, brand, q, page: pageNum, view: "grid", filters: selection })}
+                      listUrl={buildProductsUrl({ category, brand, q, page: pageNum, view: "list", filters: selection })}
                       gridLabel={t("viewGrid")}
                       listLabel={t("viewList")}
                     />
                   </div>
                 }
-                categories={categories.map((c) => ({ slug: c.slug, name: c.name[loc] }))}
+                categories={categories.map((c) => ({ slug: c.slug, name: c.name[loc], parentSlug: c.parentSlug }))}
                 brands={brands.map((b) => ({ slug: b.slug, name: b.name }))}
                 activeCategory={category}
                 activeBrand={brand}
                 activeQuery={q}
                 viewParam={viewParam}
+                filters={selection}
+                specFilters={
+                  category && (
+                    <ProductSpecFilters
+                      groups={filterGroups}
+                      selection={selection}
+                      baseParams={{ category, brand, q, view: viewParam }}
+                      labels={{ title: t("filterBySpec"), clear: t("clearSpecFilters") }}
+                    />
+                  )
+                }
                 labels={{
                   category: t("filterByCategory"),
                   brand: t("filterByBrand"),
                   allCategories: t("allCategories"),
+                  allInCategory: t("allInCategory"),
                   allBrands: t("allBrands"),
                   activeFilters: t("activeFilters"),
                   clearAll: t("clearAll"),
@@ -218,7 +270,7 @@ export default async function ProductsPage({ params, searchParams }: Props) {
                   <ProductPagination
                     currentPage={pageNum}
                     totalPages={totalPages}
-                    baseParams={{ category, brand, q, view: viewParam }}
+                    baseParams={{ category, brand, q, view: viewParam, filters: selection }}
                     previousLabel={t("previousPage")}
                     nextLabel={t("nextPage")}
                   />

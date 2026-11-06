@@ -3,21 +3,28 @@
 import { useState } from "react";
 import { useFilterNavigation } from "./products-filter-context";
 import { buildProductsUrl } from "@/lib/url-builders";
+import type { SpecFilterSelection } from "@/lib/catalog-filters";
 import { X } from "lucide-react";
 
 type Dimension = "category" | "brand";
 
 interface ProductFilterBarProps {
-  categories: { slug: string; name: string }[];
+  /** Main and sub categories; pills show the main ones, the selected main's subs below */
+  categories: { slug: string; name: string; parentSlug: string | null }[];
   brands: { slug: string; name: string }[];
   activeCategory?: string;
   activeBrand?: string;
   activeQuery?: string;
   viewParam?: string;
+  /** Spec filters of the active category (kept when the brand changes) */
+  filters?: SpecFilterSelection;
+  /** Spec filter row, shown under the category pills */
+  specFilters?: React.ReactNode;
   labels: {
     category: string;
     brand: string;
     allCategories: string;
+    allInCategory: string;
     allBrands: string;
     activeFilters: string;
     clearAll: string;
@@ -32,9 +39,15 @@ export function ProductFilterBar({
   activeBrand,
   activeQuery,
   viewParam,
+  filters,
+  specFilters,
   labels,
   toolbar,
 }: ProductFilterBarProps) {
+  const mainCategories = categories.filter((c) => !c.parentSlug);
+  const activeCategoryItem = categories.find((c) => c.slug === activeCategory);
+  const activeMain = activeCategoryItem?.parentSlug ?? activeCategoryItem?.slug;
+  const subCategories = activeMain ? categories.filter((c) => c.parentSlug === activeMain) : [];
   const { navigate } = useFilterNavigation();
 
   // Auto-select tab based on active filter state
@@ -150,6 +163,7 @@ export function ProductFilterBar({
                     navigate(
                       buildProductsUrl({
                         category: activeCategory,
+                        filters,
                         ...commonParams,
                       }),
                     )
@@ -221,11 +235,11 @@ export function ProductFilterBar({
             >
               {labels.allCategories}
             </button>
-            {categories.map((cat) => (
+            {mainCategories.map((cat) => (
               <button
                 key={cat.slug}
                 type="button"
-                aria-pressed={activeCategory === cat.slug}
+                aria-pressed={activeMain === cat.slug}
                 onClick={() =>
                   navigate(
                     buildProductsUrl({
@@ -236,7 +250,7 @@ export function ProductFilterBar({
                   )
                 }
                 className={`shrink-0 rounded-full border px-3.5 py-1.5 text-sm transition-colors ${
-                  activeCategory === cat.slug
+                  activeMain === cat.slug
                     ? "border-foreground bg-foreground text-background"
                     : "border-border text-muted-foreground hover:border-foreground hover:text-foreground"
                 }`}
@@ -254,6 +268,7 @@ export function ProductFilterBar({
                 navigate(
                   buildProductsUrl({
                     category: activeCategory,
+                    filters,
                     ...commonParams,
                   }),
                 )
@@ -276,6 +291,7 @@ export function ProductFilterBar({
                     buildProductsUrl({
                       category: activeCategory,
                       brand: b.slug,
+                      filters,
                       ...commonParams,
                     }),
                   )
@@ -292,6 +308,31 @@ export function ProductFilterBar({
           </>
         )}
       </div>
+
+      {/* Sub categories of the selected main category */}
+      {activeTab === "category" && subCategories.length > 0 && (
+        <div className="flex items-center gap-2 overflow-x-auto pt-3 pb-2 sm:flex-wrap sm:overflow-visible sm:pb-0">
+          {[{ slug: activeMain as string, name: labels.allInCategory }, ...subCategories].map((sub) => (
+            <button
+              key={sub.slug}
+              type="button"
+              aria-pressed={activeCategory === sub.slug}
+              onClick={() =>
+                navigate(buildProductsUrl({ category: sub.slug, brand: activeBrand, ...commonParams }))
+              }
+              className={`shrink-0 rounded-md px-3 py-1 text-sm transition-colors ${
+                activeCategory === sub.slug
+                  ? "bg-primary/10 font-medium text-primary"
+                  : "text-muted-foreground hover:bg-muted hover:text-foreground"
+              }`}
+            >
+              {sub.name}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {specFilters}
 
       {/* Mobile: active filter chips + toolbar */}
       <div className="sm:hidden">
@@ -321,6 +362,7 @@ export function ProductFilterBar({
                   navigate(
                     buildProductsUrl({
                       category: activeCategory,
+                      filters,
                       ...commonParams,
                     }),
                   )
